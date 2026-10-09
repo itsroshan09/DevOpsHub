@@ -2,7 +2,7 @@ package com.roshan.devopshub.incident;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
+import org.springframework.transaction.annotation.Transactional;
 @Service
 public class IncidentService {
 
@@ -21,5 +21,11 @@ public class IncidentService {
         Incident incident = new Incident(title, description, severity);
 
         return incidentRepository.save(incident);
+    }
+
+    @Transactional(readOnly = true)
+    public Incident getIncidentById(Long id) {
+        return incidentRepository.findById(id)
+                .orElseThrow(() -> new IncidentNotFoundException(id));
     }
 }

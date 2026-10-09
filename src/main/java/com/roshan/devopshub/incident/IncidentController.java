@@ -28,4 +28,10 @@ public class IncidentController {
 
         return IncidentResponse.from(incident);
     }
+
+    @GetMapping("/{id}")
+    public IncidentResponse getIncidentById(@PathVariable Long id) {
+        Incident incident = incidentService.getIncidentById(id);
+        return IncidentResponse.from(incident);
+    }
 }
