@@ -10,6 +10,10 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.Mockito.verify;
+import java.util.Optional;
+
 @ExtendWith(MockitoExtension.class)
 class IncidentServiceTest {
 
@@ -47,4 +51,21 @@ class IncidentServiceTest {
 
         verify(incidentRepository).save(any(Incident.class));
     }
+
+    @Test
+    void getIncidentByIdShouldThrowExceptionWhenIncidentDoesNotExist() {
+        when(incidentRepository.findById(999L))
+                .thenReturn(java.util.Optional.empty());
+
+        assertThrows(
+                IncidentNotFoundException.class,
+                () -> incidentService.getIncidentById(999L)
+        );
+
+        verify(incidentRepository).findById(999L);
+    }
+
+
+
+
 }
