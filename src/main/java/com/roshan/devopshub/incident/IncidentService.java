@@ -56,7 +56,7 @@ public class IncidentService {
 
     @Transactional(readOnly = true)
     public Incident getIncidentById(Long id) {
-        return incidentRepository.findById(id)
+        return incidentRepository.findWithAssigneeById(id)
                 .orElseThrow(() -> new IncidentNotFoundException(id));
     }
 

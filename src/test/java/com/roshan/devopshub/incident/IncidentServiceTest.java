@@ -96,7 +96,7 @@ class IncidentServiceTest {
 
     @Test
     void getIncidentByIdShouldThrowExceptionWhenIncidentDoesNotExist() {
-        when(incidentRepository.findById(999L))
+        when(incidentRepository.findWithAssigneeById(999L))
                 .thenReturn(Optional.empty());
 
         assertThrows(
@@ -104,7 +104,7 @@ class IncidentServiceTest {
                 () -> incidentService.getIncidentById(999L)
         );
 
-        verify(incidentRepository).findById(999L);
+        verify(incidentRepository).findWithAssigneeById(999L);
     }
 
     @Test
