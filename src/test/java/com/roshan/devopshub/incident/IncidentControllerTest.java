@@ -18,6 +18,11 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+
+import java.util.List;
 @WebMvcTest(IncidentController.class)
 class IncidentControllerTest {
 
@@ -140,4 +145,51 @@ class IncidentControllerTest {
 
         verify(incidentService).getIncidentById(999L);
     }
+
+    @Test
+    void getIncidentsShouldReturnPaginatedResults() throws Exception {
+        Incident incident = new Incident(
+                "API gateway returning 500 errors",
+                "Requests to the checkout endpoint are failing intermittently.",
+                IncidentSeverity.HIGH
+        );
+
+        Page<Incident> page = new PageImpl<>(
+                List.of(incident),
+                PageRequest.of(0, 10),
+                1
+        );
+
+        when(incidentService.getIncidents(any()))
+                .thenReturn(page);
+
+        mockMvc.perform(get("/api/incidents?page=0&size=10"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content.length()").value(1))
+                .andExpect(jsonPath("$.content[0].title")
+                        .value("API gateway returning 500 errors"))
+                .andExpect(jsonPath("$.totalElements").value(1))
+                .andExpect(jsonPath("$.totalPages").value(1))
+                .andExpect(jsonPath("$.number").value(0));
+    }
+
+
+    @Test
+    void getIncidentsShouldReturn400WhenPageIsNegative()
+            throws Exception {
+
+        mockMvc.perform(get("/api/incidents?page=-1&size=10"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").value("Invalid request"));
+    }
+
+    @Test
+    void getIncidentsShouldReturn400WhenPageSizeExceedsMaximum()
+            throws Exception {
+
+        mockMvc.perform(get("/api/incidents?page=0&size=101"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").value("Invalid request"));
+    }
+
 }

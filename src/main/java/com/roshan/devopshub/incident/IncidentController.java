@@ -7,6 +7,9 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 
 @RestController
 @RequestMapping("/api/incidents")
@@ -40,9 +43,24 @@ public class IncidentController {
 
     @GetMapping
     public Page<IncidentResponse> getIncidents(
-            @PageableDefault(size = 10, sort = "createdAt",
-                    direction = org.springframework.data.domain.Sort.Direction.DESC)
-            Pageable pageable) {
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+
+        if (page < 0) {
+            throw new IllegalArgumentException(
+                    "Page number must be zero or greater");
+        }
+
+        if (size < 1 || size > 100) {
+            throw new IllegalArgumentException(
+                    "Page size must be between 1 and 100");
+        }
+
+        PageRequest pageable = PageRequest.of(
+                page,
+                size,
+                Sort.by(Sort.Direction.DESC, "createdAt")
+        );
 
         return incidentService.getIncidents(pageable)
                 .map(IncidentResponse::from);

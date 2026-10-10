@@ -34,6 +34,7 @@ public class GlobalExceptionHandler {
 
         return ResponseEntity.badRequest().body(response);
     }
+
     @ExceptionHandler(IncidentNotFoundException.class)
     public ResponseEntity<ApiErrorResponse> handleIncidentNotFound(
             IncidentNotFoundException exception) {
@@ -46,5 +47,18 @@ public class GlobalExceptionHandler {
         );
 
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
+    }
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<ApiErrorResponse> handleIllegalArgument(
+            IllegalArgumentException exception) {
+
+        ApiErrorResponse response = new ApiErrorResponse(
+                Instant.now(),
+                HttpStatus.BAD_REQUEST.value(),
+                "Invalid request",
+                List.of(exception.getMessage())
+        );
+
+        return ResponseEntity.badRequest().body(response);
     }
 }

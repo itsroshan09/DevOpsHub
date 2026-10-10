@@ -7,6 +7,14 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+
+import java.util.List;
+
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.mockito.Mockito.verify;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
@@ -65,7 +73,28 @@ class IncidentServiceTest {
         verify(incidentRepository).findById(999L);
     }
 
+    @Test
+    void getIncidentsShouldRequestPageFromRepository() {
+        PageRequest pageable = PageRequest.of(0, 10);
 
+        Page<Incident> expectedPage = new PageImpl<>(
+                List.of(new Incident(
+                        "API gateway returning 500 errors",
+                        "Checkout requests are failing intermittently.",
+                        IncidentSeverity.HIGH
+                )),
+                pageable,
+                1
+        );
+
+        when(incidentRepository.findAll(pageable))
+                .thenReturn(expectedPage);
+
+        Page<Incident> result = incidentService.getIncidents(pageable);
+
+        assertSame(expectedPage, result);
+        verify(incidentRepository).findAll(pageable);
+    }
 
 
 }
