@@ -77,6 +77,10 @@ public class Incident {
         return status;
     }
 
+    public void transitionTo(IncidentStatus newStatus) {
+        this.status = newStatus;
+    }
+
     public Instant getCreatedAt() {
         return createdAt;
     }

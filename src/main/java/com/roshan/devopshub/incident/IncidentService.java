@@ -47,4 +47,29 @@ public class IncidentService {
 
         return incidentRepository.findByFilters(status, severity, pageable);
     }
+
+    @Transactional
+    public Incident transitionStatus(Long id, IncidentStatus newStatus) {
+        Incident incident = incidentRepository.findById(id)
+                .orElseThrow(() -> new IncidentNotFoundException(id));
+
+        IncidentStatus currentStatus = incident.getStatus();
+
+        boolean isValidTransition =
+                (currentStatus == IncidentStatus.OPEN
+                        && newStatus == IncidentStatus.IN_PROGRESS)
+                        || (currentStatus == IncidentStatus.IN_PROGRESS
+                        && newStatus == IncidentStatus.RESOLVED);
+
+        if (!isValidTransition) {
+            throw new IllegalArgumentException(
+                    "Invalid status transition from "
+                            + currentStatus + " to " + newStatus
+            );
+        }
+
+        incident.transitionTo(newStatus);
+
+        return incidentRepository.save(incident);
+    }
 }
