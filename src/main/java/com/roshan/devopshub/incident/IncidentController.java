@@ -10,6 +10,18 @@ import org.springframework.data.web.PageableDefault;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import jakarta.validation.Valid;
+
+import java.util.List;
+import org.springframework.web.bind.annotation.GetMapping;
+
+
+
 
 @RestController
 @RequestMapping("/api/incidents")
@@ -80,6 +92,46 @@ public class IncidentController {
         );
 
         return IncidentResponse.from(incident);
+    }
+
+
+    @PostMapping("/{id}/updates")
+    public ResponseEntity<IncidentUpdateResponse> addIncidentUpdate(
+            @PathVariable Long id,
+            @Valid @RequestBody CreateIncidentUpdateRequest request) {
+
+        IncidentUpdate update = incidentService.addUpdate(
+                id,
+                request.message()
+        );
+
+        IncidentUpdateResponse response = new IncidentUpdateResponse(
+                update.getId(),
+                update.getIncident().getId(),
+                update.getMessage(),
+                update.getCreatedAt()
+        );
+
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
+
+
+    @GetMapping("/{id}/updates")
+    public ResponseEntity<List<IncidentUpdateResponse>> getIncidentUpdates(
+            @PathVariable Long id) {
+
+        List<IncidentUpdateResponse> updates =
+                incidentService.getIncidentUpdates(id)
+                        .stream()
+                        .map(update -> new IncidentUpdateResponse(
+                                update.getId(),
+                                update.getIncident().getId(),
+                                update.getMessage(),
+                                update.getCreatedAt()
+                        ))
+                        .toList();
+
+        return ResponseEntity.ok(updates);
     }
 
 }

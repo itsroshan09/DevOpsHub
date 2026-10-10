@@ -30,9 +30,15 @@ class IncidentServiceTest {
 
     private IncidentService incidentService;
 
+    @Mock
+    private IncidentUpdateRepository incidentUpdateRepository;
+
     @BeforeEach
     void setUp() {
-        incidentService = new IncidentService(incidentRepository);
+        incidentService = new IncidentService(
+                incidentRepository,
+                incidentUpdateRepository
+        );
     }
 
     @Test
@@ -176,6 +182,63 @@ class IncidentServiceTest {
 
         verify(incidentRepository, never()).save(any(Incident.class));
     }
+
+
+    @Test
+    void addUpdateShouldSaveAndReturnUpdate() {
+        Incident incident = new Incident(
+                "Payment API failure",
+                "Checkout requests are failing.",
+                IncidentSeverity.HIGH
+        );
+
+        IncidentUpdate update = new IncidentUpdate(
+                incident,
+                "Database connection pool exhaustion identified."
+        );
+
+        when(incidentRepository.findById(17L))
+                .thenReturn(Optional.of(incident));
+
+        when(incidentUpdateRepository.save(any(IncidentUpdate.class)))
+                .thenReturn(update);
+
+        IncidentUpdate result = incidentService.addUpdate(
+                17L,
+                "Database connection pool exhaustion identified."
+        );
+
+        assertNotNull(result);
+        assertSame(update, result);
+        assertEquals(incident, result.getIncident());
+        assertEquals(
+                "Database connection pool exhaustion identified.",
+                result.getMessage()
+        );
+
+        verify(incidentRepository).findById(17L);
+        verify(incidentUpdateRepository).save(any(IncidentUpdate.class));
+    }
+
+
+    @Test
+    void addUpdateShouldThrowWhenIncidentDoesNotExist() {
+        when(incidentRepository.findById(999L))
+                .thenReturn(Optional.empty());
+
+        assertThrows(
+                IncidentNotFoundException.class,
+                () -> incidentService.addUpdate(
+                        999L,
+                        "Investigation update"
+                )
+        );
+
+        verify(incidentRepository).findById(999L);
+        verify(incidentUpdateRepository, never())
+                .save(any(IncidentUpdate.class));
+    }
+
 
 
 }

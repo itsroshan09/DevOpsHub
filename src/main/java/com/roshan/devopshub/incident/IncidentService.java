@@ -8,14 +8,18 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import java.util.List;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class IncidentService {
 
     private final IncidentRepository incidentRepository;
+    private final IncidentUpdateRepository incidentUpdateRepository;
 
-    public IncidentService(IncidentRepository incidentRepository) {
+    public IncidentService(IncidentRepository incidentRepository, IncidentUpdateRepository incidentUpdateRepository) {
         this.incidentRepository = incidentRepository;
+        this.incidentUpdateRepository = incidentUpdateRepository;
     }
 
     @Transactional
@@ -72,4 +76,26 @@ public class IncidentService {
 
         return incidentRepository.save(incident);
     }
+
+
+    @Transactional
+    public IncidentUpdate addUpdate(Long incidentId, String message) {
+        Incident incident = incidentRepository.findById(incidentId)
+                .orElseThrow(() -> new IncidentNotFoundException(incidentId));
+
+        IncidentUpdate update = new IncidentUpdate(incident, message);
+
+        return incidentUpdateRepository.save(update);
+    }
+
+
+    @Transactional(readOnly = true)
+    public List<IncidentUpdate> getIncidentUpdates(Long incidentId) {
+        incidentRepository.findById(incidentId)
+                .orElseThrow(() -> new IncidentNotFoundException(incidentId));
+
+        return incidentUpdateRepository
+                .findByIncidentIdOrderByCreatedAtAsc(incidentId);
+    }
+
 }

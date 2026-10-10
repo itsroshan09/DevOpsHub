@@ -25,6 +25,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 
+import static org.mockito.Mockito.never;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.http.MediaType;
+
 @WebMvcTest(IncidentController.class)
 class IncidentControllerTest {
 
@@ -309,6 +313,147 @@ class IncidentControllerTest {
                 .andExpect(status().isBadRequest());
 
         verifyNoInteractions(incidentService);
+    }
+
+
+    @Test
+    void addIncidentUpdateShouldReturn201WhenRequestIsValid()
+            throws Exception {
+
+        Incident incident = new Incident(
+                "Payment API failure",
+                "Checkout requests are failing.",
+                IncidentSeverity.HIGH
+        );
+
+        IncidentUpdate update = new IncidentUpdate(
+                incident,
+                "Database connection pool exhaustion identified."
+        );
+
+        when(incidentService.addUpdate(
+                eq(17L),
+                eq("Database connection pool exhaustion identified.")
+        )).thenReturn(update);
+
+        String request = """
+            {
+              "message": "Database connection pool exhaustion identified."
+            }
+            """;
+
+        mockMvc.perform(post("/api/incidents/17/updates")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(request))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.message")
+                        .value("Database connection pool exhaustion identified."));
+
+        verify(incidentService).addUpdate(
+                17L,
+                "Database connection pool exhaustion identified."
+        );
+    }
+
+
+    @Test
+    void addIncidentUpdateShouldReturn400WhenMessageIsBlank()
+            throws Exception {
+
+        String request = """
+            {
+              "message": "   "
+            }
+            """;
+
+        mockMvc.perform(post("/api/incidents/17/updates")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(request))
+                .andExpect(status().isBadRequest());
+
+        verifyNoInteractions(incidentService);
+    }
+
+    @Test
+    void addIncidentUpdateShouldReturn404WhenIncidentDoesNotExist()
+            throws Exception {
+
+        when(incidentService.addUpdate(
+                eq(999L),
+                eq("Investigation update")
+        )).thenThrow(new IncidentNotFoundException(999L));
+
+        String request = """
+            {
+              "message": "Investigation update"
+            }
+            """;
+
+        mockMvc.perform(post("/api/incidents/999/updates")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(request))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.error")
+                        .value("Incident not found"));
+
+        verify(incidentService).addUpdate(999L, "Investigation update");
+    }
+
+    @Test
+    void getIncidentUpdatesShouldReturn200WhenUpdatesExist()
+            throws Exception {
+
+        Incident incident = new Incident(
+                "Payment API failure",
+                "Checkout requests are failing.",
+                IncidentSeverity.HIGH
+        );
+
+        IncidentUpdate update = new IncidentUpdate(
+                incident,
+                "Database connection pool exhaustion identified."
+        );
+
+        when(incidentService.getIncidentUpdates(17L))
+                .thenReturn(List.of(update));
+
+        mockMvc.perform(get("/api/incidents/17/updates"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$").isArray())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].message")
+                        .value("Database connection pool exhaustion identified."));
+
+        verify(incidentService).getIncidentUpdates(17L);
+    }
+
+    @Test
+    void getIncidentUpdatesShouldReturnEmptyArrayWhenNoUpdatesExist()
+            throws Exception {
+
+        when(incidentService.getIncidentUpdates(17L))
+                .thenReturn(List.of());
+
+        mockMvc.perform(get("/api/incidents/17/updates"))
+                .andExpect(status().isOk())
+                .andExpect(content().json("[]"));
+
+        verify(incidentService).getIncidentUpdates(17L);
+    }
+
+    @Test
+    void getIncidentUpdatesShouldReturn404WhenIncidentDoesNotExist()
+            throws Exception {
+
+        when(incidentService.getIncidentUpdates(999L))
+                .thenThrow(new IncidentNotFoundException(999L));
+
+        mockMvc.perform(get("/api/incidents/999/updates"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.error")
+                        .value("Incident not found"));
+
+        verify(incidentService).getIncidentUpdates(999L);
     }
 
 }
