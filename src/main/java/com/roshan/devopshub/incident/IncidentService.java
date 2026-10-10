@@ -1,25 +1,31 @@
 package com.roshan.devopshub.incident;
 
-import com.roshan.devopshub.incident.Incident;
-import com.roshan.devopshub.incident.IncidentNotFoundException;
-import com.roshan.devopshub.incident.IncidentRepository;
-import com.roshan.devopshub.incident.IncidentSeverity;
+
+import com.roshan.devopshub.audit.AuditEvent;
+import com.roshan.devopshub.audit.AuditEventRepository;
+
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
 import java.util.List;
-import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class IncidentService {
 
     private final IncidentRepository incidentRepository;
     private final IncidentUpdateRepository incidentUpdateRepository;
+    private final AuditEventRepository auditEventRepository;
 
-    public IncidentService(IncidentRepository incidentRepository, IncidentUpdateRepository incidentUpdateRepository) {
+    public IncidentService(
+            IncidentRepository incidentRepository,
+            IncidentUpdateRepository incidentUpdateRepository,
+            AuditEventRepository auditEventRepository) {
+
         this.incidentRepository = incidentRepository;
         this.incidentUpdateRepository = incidentUpdateRepository;
+        this.auditEventRepository = auditEventRepository;
     }
 
     @Transactional
@@ -74,7 +80,17 @@ public class IncidentService {
 
         incident.transitionTo(newStatus);
 
-        return incidentRepository.save(incident);
+        Incident savedIncident = incidentRepository.save(incident);
+
+        AuditEvent auditEvent = new AuditEvent(
+                savedIncident,
+                "STATUS_CHANGED",
+                currentStatus + " -> " + newStatus
+        );
+
+        auditEventRepository.save(auditEvent);
+
+        return savedIncident;
     }
 
 
