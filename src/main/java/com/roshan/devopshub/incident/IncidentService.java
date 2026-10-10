@@ -36,7 +36,18 @@ public class IncidentService {
             IncidentSeverity severity) {
 
         Incident incident = new Incident(title, description, severity);
-        return incidentRepository.save(incident);
+
+        Incident savedIncident = incidentRepository.save(incident);
+
+        AuditEvent auditEvent = new AuditEvent(
+                savedIncident,
+                "INCIDENT_CREATED",
+                "Incident created"
+        );
+
+        auditEventRepository.save(auditEvent);
+
+        return savedIncident;
     }
 
     @Transactional(readOnly = true)

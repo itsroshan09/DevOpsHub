@@ -127,4 +127,93 @@ class IncidentAuditTransactionIntegrationTest {
                     devopshub_test_fail_status_audit_insert()
                 """);
     }
+
+    @Test
+    void shouldRollbackIncidentCreationWhenAuditInsertFails() {
+        String title = "Rollback test " + java.util.UUID.randomUUID();
+
+        try {
+            installFailingCreationAuditTrigger();
+
+            assertThrows(
+                    DataAccessException.class,
+                    () -> incidentService.createIncident(
+                            title,
+                            "The audit insert should fail.",
+                            IncidentSeverity.HIGH
+                    )
+            );
+
+            Integer incidentCount = jdbcTemplate.queryForObject(
+                    "SELECT COUNT(*) FROM incidents WHERE title = ?",
+                    Integer.class,
+                    title
+            );
+
+            assertEquals(
+                    0,
+                    incidentCount,
+                    "The incident insert should have rolled back"
+            );
+
+            Integer auditCount = jdbcTemplate.queryForObject(
+                    """
+                    SELECT COUNT(*)
+                    FROM audit_events ae
+                    JOIN incidents i ON i.id = ae.incident_id
+                    WHERE i.title = ?
+                      AND ae.action = 'INCIDENT_CREATED'
+                    """,
+                    Integer.class,
+                    title
+            );
+
+            assertEquals(
+                    0,
+                    auditCount,
+                    "No creation audit event should remain for the failed incident"
+            );
+        } finally {
+            removeFailingCreationAuditTrigger();
+        }
+    }
+
+    private void installFailingCreationAuditTrigger() {
+        jdbcTemplate.execute("""
+            CREATE OR REPLACE FUNCTION
+                devopshub_test_fail_creation_audit_insert()
+            RETURNS trigger AS $$
+            BEGIN
+                IF NEW.action = 'INCIDENT_CREATED' THEN
+                    RAISE EXCEPTION
+                        'Intentional creation audit failure for integration test';
+                END IF;
+
+                RETURN NEW;
+            END;
+            $$ LANGUAGE plpgsql
+            """);
+
+        jdbcTemplate.execute("""
+            CREATE TRIGGER
+                devopshub_test_fail_creation_audit_trigger
+            BEFORE INSERT ON audit_events
+            FOR EACH ROW
+            EXECUTE FUNCTION
+                devopshub_test_fail_creation_audit_insert()
+            """);
+    }
+
+    private void removeFailingCreationAuditTrigger() {
+        jdbcTemplate.execute("""
+            DROP TRIGGER IF EXISTS
+                devopshub_test_fail_creation_audit_trigger
+            ON audit_events
+            """);
+
+        jdbcTemplate.execute("""
+            DROP FUNCTION IF EXISTS
+                devopshub_test_fail_creation_audit_insert()
+            """);
+    }
 }

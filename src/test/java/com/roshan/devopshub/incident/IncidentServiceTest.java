@@ -29,6 +29,7 @@ import org.mockito.ArgumentCaptor;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import java.time.Instant;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.inOrder;
 
 @ExtendWith(MockitoExtension.class)
 class IncidentServiceTest {
@@ -54,7 +55,7 @@ class IncidentServiceTest {
     }
 
     @Test
-    void createIncidentShouldSaveAndReturnIncident() {
+    void createIncidentShouldSaveAndAuditIncident() {
         Incident incident = new Incident(
                 "API gateway returning 500 errors",
                 "Checkout requests are failing intermittently.",
@@ -71,15 +72,15 @@ class IncidentServiceTest {
         );
 
         assertNotNull(result);
-        assertEquals(
-                "API gateway returning 500 errors",
-                result.getTitle()
-        );
+        assertEquals("API gateway returning 500 errors", result.getTitle());
         assertEquals(IncidentSeverity.HIGH, result.getSeverity());
         assertEquals(IncidentStatus.OPEN, result.getStatus());
 
-        verify(incidentRepository).save(any(Incident.class));
+        var order = inOrder(incidentRepository, auditEventRepository);
+        order.verify(incidentRepository).save(any(Incident.class));
+        order.verify(auditEventRepository).save(any(AuditEvent.class));
     }
+
 
     @Test
     void getIncidentByIdShouldThrowExceptionWhenIncidentDoesNotExist() {
@@ -420,6 +421,33 @@ class IncidentServiceTest {
                 .findByIncidentIdOrderByCreatedAtAscIdAsc(999L);
     }
 
+    @Test
+    void createIncidentShouldRecordCorrectAuditDetails() {
+        Incident incident = new Incident(
+                "API gateway failure",
+                "Requests are failing.",
+                IncidentSeverity.HIGH
+        );
 
+        when(incidentRepository.save(any(Incident.class)))
+                .thenReturn(incident);
+
+        incidentService.createIncident(
+                "API gateway failure",
+                "Requests are failing.",
+                IncidentSeverity.HIGH
+        );
+
+        ArgumentCaptor<AuditEvent> captor =
+                ArgumentCaptor.forClass(AuditEvent.class);
+
+        verify(auditEventRepository).save(captor.capture());
+
+        AuditEvent event = captor.getValue();
+
+        assertSame(incident, event.getIncident());
+        assertEquals("INCIDENT_CREATED", event.getAction());
+        assertEquals("Incident created", event.getDetails());
+    }
 
 }
