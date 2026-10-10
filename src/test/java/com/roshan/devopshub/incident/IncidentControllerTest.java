@@ -508,5 +508,53 @@ class IncidentControllerTest {
         verify(incidentService).getIncidentHistory(999L);
     }
 
+    @Test
+    void assignIncidentShouldReturn200WhenRequestIsValid()
+            throws Exception {
+
+        Incident incident = new Incident(
+                "API gateway failure",
+                "Requests are failing.",
+                IncidentSeverity.HIGH
+        );
+
+        when(incidentService.assignIncident(17L, 2L))
+                .thenReturn(incident);
+
+        String request = """
+            {
+              "userId": 2
+            }
+            """;
+
+        mockMvc.perform(
+                        org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                                .put("/api/incidents/17/assignee")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(request)
+                )
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.title").value("API gateway failure"))
+                .andExpect(jsonPath("$.assigneeId").doesNotExist());
+
+        verify(incidentService).assignIncident(17L, 2L);
+    }
+
+    @Test
+    void assignIncidentShouldReturn400WhenUserIdIsMissing()
+            throws Exception {
+
+        mockMvc.perform(
+                        org.springframework.test.web.servlet.request.MockMvcRequestBuilders
+                                .put("/api/incidents/17/assignee")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{}")
+                )
+                .andExpect(status().isBadRequest());
+
+        verifyNoInteractions(incidentService);
+    }
+
+
 
 }

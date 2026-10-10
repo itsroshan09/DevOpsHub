@@ -9,7 +9,9 @@ public record IncidentResponse(
         IncidentSeverity severity,
         IncidentStatus status,
         Instant createdAt,
-        Instant updatedAt
+        Instant updatedAt,
+        Long assigneeId,
+        String assigneeEmail
 ) {
     public static IncidentResponse from(Incident incident) {
         return new IncidentResponse(
@@ -19,7 +21,14 @@ public record IncidentResponse(
                 incident.getSeverity(),
                 incident.getStatus(),
                 incident.getCreatedAt(),
-                incident.getUpdatedAt()
+                incident.getUpdatedAt(),
+                incident.getAssignee() == null
+                        ? null
+                        : incident.getAssignee().getId(),
+                incident.getAssignee() == null
+                        ? null
+                        : incident.getAssignee().getEmail()
+
         );
     }
 }

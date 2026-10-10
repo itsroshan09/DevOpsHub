@@ -9,7 +9,9 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.util.Comparator;
-
+import com.roshan.devopshub.user.User;
+import com.roshan.devopshub.user.UserRepository;
+import com.roshan.devopshub.user.UserNotFoundException;
 import java.util.List;
 
 @Service
@@ -18,15 +20,17 @@ public class IncidentService {
     private final IncidentRepository incidentRepository;
     private final IncidentUpdateRepository incidentUpdateRepository;
     private final AuditEventRepository auditEventRepository;
+    private final UserRepository userRepository;
 
     public IncidentService(
             IncidentRepository incidentRepository,
             IncidentUpdateRepository incidentUpdateRepository,
-            AuditEventRepository auditEventRepository) {
+            AuditEventRepository auditEventRepository, UserRepository userRepository) {
 
         this.incidentRepository = incidentRepository;
         this.incidentUpdateRepository = incidentUpdateRepository;
         this.auditEventRepository = auditEventRepository;
+        this.userRepository = userRepository;
     }
 
     @Transactional
@@ -168,5 +172,36 @@ public class IncidentService {
 
         return history;
     }
+
+
+    @Transactional
+    public Incident assignIncident(Long incidentId, Long userId) {
+        Incident incident = incidentRepository.findById(incidentId)
+                .orElseThrow(() -> new IncidentNotFoundException(incidentId));
+
+        User newAssignee = userRepository.findById(userId)
+                .orElseThrow(() -> new UserNotFoundException(userId));
+
+        User previousAssignee = incident.getAssignee();
+        String previousAssigneeName = previousAssignee == null
+                ? "Unassigned"
+                : previousAssignee.getEmail();
+
+        incident.assignTo(newAssignee);
+
+        Incident savedIncident = incidentRepository.save(incident);
+
+        AuditEvent auditEvent = new AuditEvent(
+                savedIncident,
+                "INCIDENT_ASSIGNED",
+                previousAssigneeName + " -> " + newAssignee.getEmail()
+        );
+
+        auditEventRepository.save(auditEvent);
+
+        return savedIncident;
+    }
+
+
 
 }

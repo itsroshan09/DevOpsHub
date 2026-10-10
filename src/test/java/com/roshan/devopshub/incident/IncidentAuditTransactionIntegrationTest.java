@@ -15,6 +15,11 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.roshan.devopshub.user.User;
+import com.roshan.devopshub.user.UserRole;
+import com.roshan.devopshub.user.UserRepository;
+
+
 @SpringBootTest
 class IncidentAuditTransactionIntegrationTest {
 
@@ -29,6 +34,9 @@ class IncidentAuditTransactionIntegrationTest {
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
+
+    @Autowired
+    private UserRepository userRepository;
 
     @Test
     void shouldRollbackStatusChangeWhenAuditInsertFails() {
@@ -216,4 +224,145 @@ class IncidentAuditTransactionIntegrationTest {
                 devopshub_test_fail_creation_audit_insert()
             """);
     }
+
+    @Test
+    void shouldPersistIncidentAssignmentAndAuditEvent() {
+        String email = "assignment-" + java.util.UUID.randomUUID()
+                + "@example.com";
+
+        User user = userRepository.save(
+                new User(email, "Test Responder", UserRole.RESPONDER)
+        );
+
+        Incident incident = incidentService.createIncident(
+                "Assignment integration test",
+                "Verify assignment persistence.",
+                IncidentSeverity.HIGH
+        );
+
+        incidentService.assignIncident(incident.getId(), user.getId());
+
+        Incident persistedIncident = incidentRepository
+                .findById(incident.getId())
+                .orElseThrow();
+
+        assertEquals(user.getId(), persistedIncident.getAssignee().getId());
+
+        List<AuditEvent> events = auditEventRepository
+                .findByIncidentIdOrderByCreatedAtAscIdAsc(incident.getId());
+
+        assertTrue(events.stream().anyMatch(event ->
+                "INCIDENT_ASSIGNED".equals(event.getAction())
+                        && event.getDetails().equals(
+                        "Unassigned -> " + email
+                )
+        ));
+    }
+
+
+    @Test
+    void shouldRollbackIncidentReassignmentWhenAuditInsertFails() {
+        String firstEmail = "first-" + java.util.UUID.randomUUID()
+                + "@example.com";
+        String secondEmail = "second-" + java.util.UUID.randomUUID()
+                + "@example.com";
+
+        User firstUser = userRepository.save(
+                new User(firstEmail, "First Responder", UserRole.RESPONDER)
+        );
+
+        User secondUser = userRepository.save(
+                new User(secondEmail, "Second Responder", UserRole.RESPONDER)
+        );
+
+        Incident incident = incidentService.createIncident(
+                "Assignment rollback integration test",
+                "Verify reassignment rollback.",
+                IncidentSeverity.HIGH
+        );
+
+        Long incidentId = incident.getId();
+
+        // Establish the initial persisted assignee.
+        incidentService.assignIncident(incidentId, firstUser.getId());
+
+        installFailingAssignmentAuditTrigger();
+
+        try {
+            assertThrows(
+                    DataAccessException.class,
+                    () -> incidentService.assignIncident(
+                            incidentId,
+                            secondUser.getId()
+                    )
+            );
+
+            // Reload the incident from PostgreSQL after the failed transaction.
+            Incident persistedIncident = incidentRepository
+                    .findById(incidentId)
+                    .orElseThrow();
+
+            assertEquals(
+                    firstUser.getId(),
+                    persistedIncident.getAssignee().getId(),
+                    "The original assignee should remain after rollback"
+            );
+
+            List<AuditEvent> events = auditEventRepository
+                    .findByIncidentIdOrderByCreatedAtAscIdAsc(incidentId);
+
+            assertTrue(
+                    events.stream().noneMatch(event ->
+                            "INCIDENT_ASSIGNED".equals(event.getAction())
+                                    && event.getDetails().equals(
+                                    firstEmail + " -> " + secondEmail
+                            )
+                    ),
+                    "The failed reassignment must not have an audit event"
+            );
+        } finally {
+            removeFailingAssignmentAuditTrigger();
+        }
+    }
+
+
+    private void installFailingAssignmentAuditTrigger() {
+        jdbcTemplate.execute("""
+            CREATE OR REPLACE FUNCTION
+                devopshub_test_fail_assignment_audit_insert()
+            RETURNS trigger AS $$
+            BEGIN
+                IF NEW.action = 'INCIDENT_ASSIGNED' THEN
+                    RAISE EXCEPTION
+                        'Intentional assignment audit failure for integration test';
+                END IF;
+
+                RETURN NEW;
+            END;
+            $$ LANGUAGE plpgsql
+            """);
+
+        jdbcTemplate.execute("""
+            CREATE TRIGGER
+                devopshub_test_fail_assignment_audit_trigger
+            BEFORE INSERT ON audit_events
+            FOR EACH ROW
+            EXECUTE FUNCTION
+                devopshub_test_fail_assignment_audit_insert()
+            """);
+    }
+
+    private void removeFailingAssignmentAuditTrigger() {
+        jdbcTemplate.execute("""
+            DROP TRIGGER IF EXISTS
+                devopshub_test_fail_assignment_audit_trigger
+            ON audit_events
+            """);
+
+        jdbcTemplate.execute("""
+            DROP FUNCTION IF EXISTS
+                devopshub_test_fail_assignment_audit_insert()
+            """);
+    }
+
 }

@@ -19,6 +19,7 @@ import jakarta.validation.Valid;
 
 import java.util.List;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 
 
 
@@ -52,6 +53,20 @@ public class IncidentController {
         Incident incident = incidentService.getIncidentById(id);
         return IncidentResponse.from(incident);
     }
+
+    @PutMapping("/{id}/assignee")
+    public IncidentResponse assignIncident(
+            @PathVariable Long id,
+            @Valid @RequestBody AssignIncidentRequest request
+    ) {
+        Incident incident = incidentService.assignIncident(
+                id,
+                request.userId()
+        );
+
+        return IncidentResponse.from(incident);
+    }
+
 
     @GetMapping
     public Page<IncidentResponse> getIncidents(

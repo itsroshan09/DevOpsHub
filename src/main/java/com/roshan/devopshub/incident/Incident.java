@@ -31,6 +31,14 @@ public class Incident {
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(
+            name = "assigned_to",
+            foreignKey = @ForeignKey(name = "fk_incidents_assigned_user")
+    )
+    private com.roshan.devopshub.user.User assignee;
+
     protected Incident() {
         // Required by JPA.
     }
@@ -88,4 +96,13 @@ public class Incident {
     public Instant getUpdatedAt() {
         return updatedAt;
     }
+
+    public com.roshan.devopshub.user.User getAssignee() {
+        return assignee;
+    }
+
+    public void assignTo(com.roshan.devopshub.user.User assignee) {
+        this.assignee = assignee;
+    }
+
 }

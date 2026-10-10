@@ -3,6 +3,9 @@ package com.roshan.devopshub.incident;
 
 import com.roshan.devopshub.audit.AuditEvent;
 import com.roshan.devopshub.audit.AuditEventRepository;
+import com.roshan.devopshub.user.User;
+import com.roshan.devopshub.user.UserNotFoundException;
+import com.roshan.devopshub.user.UserRole;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -23,13 +26,19 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
-
+import com.roshan.devopshub.user.UserRepository;
+import static org.mockito.Mockito.mock;
 import org.mockito.ArgumentCaptor;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import java.time.Instant;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.inOrder;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.Mockito.never;
+
+
 
 @ExtendWith(MockitoExtension.class)
 class IncidentServiceTest {
@@ -44,13 +53,16 @@ class IncidentServiceTest {
     private AuditEventRepository auditEventRepository;
 
     private IncidentService incidentService;
+    @Mock
+    private UserRepository userRepository;
 
     @BeforeEach
     void setUp() {
         incidentService = new IncidentService(
                 incidentRepository,
                 incidentUpdateRepository,
-                auditEventRepository
+                auditEventRepository,
+                userRepository
         );
     }
 
@@ -450,4 +462,76 @@ class IncidentServiceTest {
         assertEquals("Incident created", event.getDetails());
     }
 
+    @Test
+    void assignIncidentShouldAssignUserAndRecordAuditEvent() {
+        Incident incident = new Incident(
+                "API gateway failure",
+                "Requests are failing.",
+                IncidentSeverity.HIGH
+        );
+
+        User user = new User(
+                "responder@example.com",
+                "Test Responder",
+                UserRole.RESPONDER
+        );
+
+        when(incidentRepository.findById(1L))
+                .thenReturn(Optional.of(incident));
+        when(userRepository.findById(2L))
+                .thenReturn(Optional.of(user));
+        when(incidentRepository.save(any(Incident.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        Incident result = incidentService.assignIncident(1L, 2L);
+
+        assertSame(user, result.getAssignee());
+
+        ArgumentCaptor<AuditEvent> captor =
+                ArgumentCaptor.forClass(AuditEvent.class);
+
+        verify(auditEventRepository).save(captor.capture());
+
+        AuditEvent event = captor.getValue();
+        assertSame(incident, event.getIncident());
+        assertEquals("INCIDENT_ASSIGNED", event.getAction());
+        assertEquals(
+                "Unassigned -> responder@example.com",
+                event.getDetails()
+        );
+    }
+
+    @Test
+    void assignIncidentShouldThrowWhenUserDoesNotExist() {
+        when(incidentRepository.findById(1L))
+                .thenReturn(Optional.of(new Incident(
+                        "API gateway failure",
+                        "Requests are failing.",
+                        IncidentSeverity.HIGH
+                )));
+        when(userRepository.findById(2L))
+                .thenReturn(Optional.empty());
+
+        assertThrows(
+                UserNotFoundException.class,
+                () -> incidentService.assignIncident(1L, 2L)
+        );
+
+        verify(incidentRepository, never()).save(any(Incident.class));
+        verify(auditEventRepository, never()).save(any(AuditEvent.class));
+    }
+
+    @Test
+    void assignIncidentShouldThrowWhenIncidentDoesNotExist() {
+        when(incidentRepository.findById(1L))
+                .thenReturn(Optional.empty());
+
+        assertThrows(
+                IncidentNotFoundException.class,
+                () -> incidentService.assignIncident(1L, 2L)
+        );
+
+        verify(userRepository, never()).findById(anyLong());
+        verify(auditEventRepository, never()).save(any(AuditEvent.class));
+    }
 }
