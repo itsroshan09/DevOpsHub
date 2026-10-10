@@ -29,6 +29,8 @@ import static org.mockito.Mockito.never;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.http.MediaType;
 
+import java.time.Instant;
+
 @WebMvcTest(IncidentController.class)
 class IncidentControllerTest {
 
@@ -455,5 +457,56 @@ class IncidentControllerTest {
 
         verify(incidentService).getIncidentUpdates(999L);
     }
+
+    @Test
+    void getIncidentHistoryShouldReturnChronologicalHistory() throws Exception {
+        Instant earlier = Instant.parse("2026-10-11T10:00:00Z");
+        Instant later = Instant.parse("2026-10-11T10:05:00Z");
+
+        List<IncidentHistoryItemResponse> history = List.of(
+                new IncidentHistoryItemResponse(
+                        "STATUS_CHANGED",
+                        "OPEN -> IN_PROGRESS",
+                        earlier
+                ),
+                new IncidentHistoryItemResponse(
+                        "INVESTIGATION_UPDATE",
+                        "Investigating database connections.",
+                        later
+                )
+        );
+
+        when(incidentService.getIncidentHistory(17L))
+                .thenReturn(history);
+
+        mockMvc.perform(get("/api/incidents/17/history"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(2))
+                .andExpect(jsonPath("$[0].type").value("STATUS_CHANGED"))
+                .andExpect(jsonPath("$[0].details")
+                        .value("OPEN -> IN_PROGRESS"))
+                .andExpect(jsonPath("$[1].type")
+                        .value("INVESTIGATION_UPDATE"))
+                .andExpect(jsonPath("$[1].details")
+                        .value("Investigating database connections."));
+
+        verify(incidentService).getIncidentHistory(17L);
+    }
+
+    @Test
+    void getIncidentHistoryShouldReturn404WhenIncidentDoesNotExist()
+            throws Exception {
+
+        when(incidentService.getIncidentHistory(999L))
+                .thenThrow(new IncidentNotFoundException(999L));
+
+        mockMvc.perform(get("/api/incidents/999/history"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.error")
+                        .value("Incident not found"));
+
+        verify(incidentService).getIncidentHistory(999L);
+    }
+
 
 }

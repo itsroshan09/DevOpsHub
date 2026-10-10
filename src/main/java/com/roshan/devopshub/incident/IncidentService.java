@@ -8,6 +8,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import java.util.Comparator;
 
 import java.util.List;
 
@@ -112,6 +113,49 @@ public class IncidentService {
 
         return incidentUpdateRepository
                 .findByIncidentIdOrderByCreatedAtAsc(incidentId);
+    }
+
+    @Transactional(readOnly = true)
+    public List<IncidentHistoryItemResponse> getIncidentHistory(
+            Long incidentId
+    ) {
+        // Ensure the incident exists before retrieving its history.
+        incidentRepository.findById(incidentId)
+                .orElseThrow(() -> new IncidentNotFoundException(incidentId));
+
+        List<IncidentHistoryItemResponse> history =
+                new java.util.ArrayList<>();
+
+        incidentUpdateRepository
+                .findByIncidentIdOrderByCreatedAtAsc(incidentId)
+                .forEach(update -> history.add(
+                        new IncidentHistoryItemResponse(
+                                "INVESTIGATION_UPDATE",
+                                update.getMessage(),
+                                update.getCreatedAt()
+                        )
+                ));
+
+        auditEventRepository
+                .findByIncidentIdOrderByCreatedAtAscIdAsc(incidentId)
+                .forEach(event -> history.add(
+                        new IncidentHistoryItemResponse(
+                                event.getAction(),
+                                event.getDetails(),
+                                event.getCreatedAt()
+                        )
+                ));
+
+        history.sort(
+                Comparator.comparing(
+                                IncidentHistoryItemResponse::createdAt
+                        )
+                        .thenComparing(
+                                IncidentHistoryItemResponse::type
+                        )
+        );
+
+        return history;
     }
 
 }

@@ -27,6 +27,8 @@ import static org.mockito.Mockito.when;
 import org.mockito.ArgumentCaptor;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import java.time.Instant;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @ExtendWith(MockitoExtension.class)
 class IncidentServiceTest {
@@ -328,4 +330,96 @@ class IncidentServiceTest {
         verify(incidentUpdateRepository, never())
                 .findByIncidentIdOrderByCreatedAtAsc(999L);
     }
+
+
+    @Test
+    void getIncidentHistoryShouldCombineAndSortEventsChronologically() {
+        Incident incident = new Incident(
+                "Payment API failure",
+                "Checkout requests are failing.",
+                IncidentSeverity.HIGH
+        );
+
+        Instant earlier = Instant.parse("2026-10-11T10:00:00Z");
+        Instant later = Instant.parse("2026-10-11T10:05:00Z");
+
+        IncidentUpdate update = new IncidentUpdate(
+                incident,
+                "Investigating database connections."
+        );
+
+        AuditEvent auditEvent = new AuditEvent(
+                incident,
+                "STATUS_CHANGED",
+                "OPEN -> IN_PROGRESS"
+        );
+
+        // Set timestamps deterministically for this unit test.
+        setCreatedAt(update, later);
+        setCreatedAt(auditEvent, earlier);
+
+        when(incidentRepository.findById(17L))
+                .thenReturn(Optional.of(incident));
+
+        when(incidentUpdateRepository
+                .findByIncidentIdOrderByCreatedAtAsc(17L))
+                .thenReturn(List.of(update));
+
+        when(auditEventRepository
+                .findByIncidentIdOrderByCreatedAtAscIdAsc(17L))
+                .thenReturn(List.of(auditEvent));
+
+        List<IncidentHistoryItemResponse> history =
+                incidentService.getIncidentHistory(17L);
+
+        assertEquals(2, history.size());
+        assertEquals("STATUS_CHANGED", history.get(0).type());
+        assertEquals("OPEN -> IN_PROGRESS", history.get(0).details());
+        assertEquals(earlier, history.get(0).createdAt());
+
+        assertEquals("INVESTIGATION_UPDATE", history.get(1).type());
+        assertEquals(
+                "Investigating database connections.",
+                history.get(1).details()
+        );
+        assertEquals(later, history.get(1).createdAt());
+
+        verify(incidentRepository).findById(17L);
+        verify(incidentUpdateRepository)
+                .findByIncidentIdOrderByCreatedAtAsc(17L);
+        verify(auditEventRepository)
+                .findByIncidentIdOrderByCreatedAtAscIdAsc(17L);
+    }
+
+    private void setCreatedAt(Object entity, Instant timestamp) {
+        try {
+            var field = entity.getClass().getDeclaredField("createdAt");
+            field.setAccessible(true);
+            field.set(entity, timestamp);
+        } catch (ReflectiveOperationException exception) {
+            throw new AssertionError(
+                    "Could not set test timestamp", exception
+            );
+        }
+    }
+
+    @Test
+    void getIncidentHistoryShouldThrowWhenIncidentDoesNotExist() {
+        when(incidentRepository.findById(999L))
+                .thenReturn(Optional.empty());
+
+        assertThrows(
+                IncidentNotFoundException.class,
+                () -> incidentService.getIncidentHistory(999L)
+        );
+
+        verify(incidentRepository).findById(999L);
+        verify(incidentUpdateRepository, never())
+                .findByIncidentIdOrderByCreatedAtAsc(999L);
+        verify(auditEventRepository, never())
+                .findByIncidentIdOrderByCreatedAtAscIdAsc(999L);
+    }
+
+
+
 }

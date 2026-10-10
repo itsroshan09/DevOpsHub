@@ -134,4 +134,14 @@ public class IncidentController {
         return ResponseEntity.ok(updates);
     }
 
+    @GetMapping("/{id}/history")
+    public ResponseEntity<List<IncidentHistoryItemResponse>> getIncidentHistory(
+            @PathVariable Long id
+    ) {
+        List<IncidentHistoryItemResponse> history =
+                incidentService.getIncidentHistory(id);
+
+        return ResponseEntity.ok(history);
+    }
+
 }
