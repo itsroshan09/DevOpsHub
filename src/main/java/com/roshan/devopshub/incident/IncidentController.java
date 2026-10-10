@@ -43,6 +43,8 @@ public class IncidentController {
 
     @GetMapping
     public Page<IncidentResponse> getIncidents(
+            @RequestParam(required = false) IncidentStatus status,
+            @RequestParam(required = false) IncidentSeverity severity,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
 
@@ -62,7 +64,7 @@ public class IncidentController {
                 Sort.by(Sort.Direction.DESC, "createdAt")
         );
 
-        return incidentService.getIncidents(pageable)
+        return incidentService.getIncidents(status, severity, pageable)
                 .map(IncidentResponse::from);
     }
 

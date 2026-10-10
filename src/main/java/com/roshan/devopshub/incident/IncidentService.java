@@ -38,4 +38,13 @@ public class IncidentService {
     public Page<Incident> getIncidents(Pageable pageable) {
         return incidentRepository.findAll(pageable);
     }
+
+    @Transactional(readOnly = true)
+    public Page<Incident> getIncidents(
+            IncidentStatus status,
+            IncidentSeverity severity,
+            Pageable pageable) {
+
+        return incidentRepository.findByFilters(status, severity, pageable);
+    }
 }
