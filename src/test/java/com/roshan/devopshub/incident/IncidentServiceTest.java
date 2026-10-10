@@ -240,5 +240,61 @@ class IncidentServiceTest {
     }
 
 
+    @Test
+    void getIncidentUpdatesShouldReturnUpdatesInRepositoryOrder() {
+        Incident incident = new Incident(
+                "Payment API failure",
+                "Checkout requests are failing.",
+                IncidentSeverity.HIGH
+        );
+
+        IncidentUpdate firstUpdate = new IncidentUpdate(
+                incident,
+                "Investigating database connections."
+        );
+
+        IncidentUpdate secondUpdate = new IncidentUpdate(
+                incident,
+                "Connection pool exhaustion confirmed."
+        );
+
+        List<IncidentUpdate> expectedUpdates =
+                List.of(firstUpdate, secondUpdate);
+
+        when(incidentRepository.findById(17L))
+                .thenReturn(Optional.of(incident));
+
+        when(incidentUpdateRepository
+                .findByIncidentIdOrderByCreatedAtAsc(17L))
+                .thenReturn(expectedUpdates);
+
+        List<IncidentUpdate> result =
+                incidentService.getIncidentUpdates(17L);
+
+        assertEquals(2, result.size());
+        assertSame(firstUpdate, result.get(0));
+        assertSame(secondUpdate, result.get(1));
+
+        verify(incidentRepository).findById(17L);
+        verify(incidentUpdateRepository)
+                .findByIncidentIdOrderByCreatedAtAsc(17L);
+    }
+
+    @Test
+    void getIncidentUpdatesShouldThrowWhenIncidentDoesNotExist() {
+        when(incidentRepository.findById(999L))
+                .thenReturn(Optional.empty());
+
+        assertThrows(
+                IncidentNotFoundException.class,
+                () -> incidentService.getIncidentUpdates(999L)
+        );
+
+        verify(incidentRepository).findById(999L);
+
+        verify(incidentUpdateRepository, never())
+                .findByIncidentIdOrderByCreatedAtAsc(999L);
+    }
+
 
 }
