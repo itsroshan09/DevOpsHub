@@ -192,4 +192,26 @@ class IncidentControllerTest {
                 .andExpect(jsonPath("$.error").value("Invalid request"));
     }
 
+    @Test
+    void getIncidentsShouldReturn400WhenPageSizeIsZero()
+            throws Exception {
+
+        mockMvc.perform(get("/api/incidents?page=0&size=0"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").value("Invalid request"));
+    }
+
+    @Test
+    void getIncidentsShouldAcceptMaximumPageSize()
+            throws Exception {
+
+        when(incidentService.getIncidents(any()))
+                .thenReturn(Page.empty());
+
+        mockMvc.perform(get("/api/incidents?page=0&size=100"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content").isArray())
+                .andExpect(jsonPath("$.content").isEmpty());
+    }
+
 }
