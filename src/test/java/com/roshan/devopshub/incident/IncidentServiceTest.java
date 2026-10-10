@@ -97,4 +97,85 @@ class IncidentServiceTest {
     }
 
 
+    @Test
+    void transitionStatusShouldAllowOpenToInProgress() {
+        Incident incident = new Incident(
+                "Payment API failure",
+                "Checkout requests are failing.",
+                IncidentSeverity.HIGH
+        );
+
+        when(incidentRepository.findById(17L))
+                .thenReturn(Optional.of(incident));
+        when(incidentRepository.save(incident))
+                .thenReturn(incident);
+
+        Incident result = incidentService.transitionStatus(
+                17L, IncidentStatus.IN_PROGRESS
+        );
+
+        assertEquals(IncidentStatus.IN_PROGRESS, result.getStatus());
+        verify(incidentRepository).save(incident);
+    }
+
+    @Test
+    void transitionStatusShouldAllowInProgressToResolved() {
+        Incident incident = new Incident(
+                "Payment API failure",
+                "Checkout requests are failing.",
+                IncidentSeverity.HIGH
+        );
+        incident.transitionTo(IncidentStatus.IN_PROGRESS);
+
+        when(incidentRepository.findById(17L))
+                .thenReturn(Optional.of(incident));
+        when(incidentRepository.save(incident))
+                .thenReturn(incident);
+
+        Incident result = incidentService.transitionStatus(
+                17L, IncidentStatus.RESOLVED
+        );
+
+        assertEquals(IncidentStatus.RESOLVED, result.getStatus());
+        verify(incidentRepository).save(incident);
+    }
+
+    @Test
+    void transitionStatusShouldRejectOpenToResolved() {
+        Incident incident = new Incident(
+                "Payment API failure",
+                "Checkout requests are failing.",
+                IncidentSeverity.HIGH
+        );
+
+        when(incidentRepository.findById(17L))
+                .thenReturn(Optional.of(incident));
+
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> incidentService.transitionStatus(
+                        17L, IncidentStatus.RESOLVED
+                )
+        );
+
+        assertEquals(IncidentStatus.OPEN, incident.getStatus());
+        verify(incidentRepository, never()).save(any(Incident.class));
+    }
+
+    @Test
+    void transitionStatusShouldThrowWhenIncidentDoesNotExist() {
+        when(incidentRepository.findById(999L))
+                .thenReturn(Optional.empty());
+
+        assertThrows(
+                IncidentNotFoundException.class,
+                () -> incidentService.transitionStatus(
+                        999L, IncidentStatus.IN_PROGRESS
+                )
+        );
+
+        verify(incidentRepository, never()).save(any(Incident.class));
+    }
+
+
 }

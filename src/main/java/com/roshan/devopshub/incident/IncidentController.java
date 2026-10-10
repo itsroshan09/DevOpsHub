@@ -68,4 +68,18 @@ public class IncidentController {
                 .map(IncidentResponse::from);
     }
 
+
+    @PostMapping("/{id}/transitions")
+    public IncidentResponse transitionIncident(
+            @PathVariable Long id,
+            @Valid @RequestBody TransitionIncidentRequest request) {
+
+        Incident incident = incidentService.transitionStatus(
+                id,
+                request.status()
+        );
+
+        return IncidentResponse.from(incident);
+    }
+
 }

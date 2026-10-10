@@ -265,6 +265,50 @@ class IncidentControllerTest {
         );
     }
 
+    @Test
+    void transitionIncidentShouldReturn200WhenTransitionIsValid()
+            throws Exception {
 
+        Incident incident = new Incident(
+                "Payment API failure",
+                "Checkout requests are failing.",
+                IncidentSeverity.HIGH
+        );
+        incident.transitionTo(IncidentStatus.IN_PROGRESS);
+
+        when(incidentService.transitionStatus(
+                17L, IncidentStatus.IN_PROGRESS
+        )).thenReturn(incident);
+
+        String request = """
+            {
+              "status": "IN_PROGRESS"
+            }
+            """;
+
+        mockMvc.perform(post("/api/incidents/17/transitions")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(request))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("IN_PROGRESS"));
+
+        verify(incidentService).transitionStatus(
+                17L, IncidentStatus.IN_PROGRESS
+        );
+    }
+
+    @Test
+    void transitionIncidentShouldReturn400WhenStatusIsMissing()
+            throws Exception {
+
+        String request = "{}";
+
+        mockMvc.perform(post("/api/incidents/17/transitions")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(request))
+                .andExpect(status().isBadRequest());
+
+        verifyNoInteractions(incidentService);
+    }
 
 }
