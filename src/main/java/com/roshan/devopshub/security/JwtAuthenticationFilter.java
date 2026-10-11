@@ -1,6 +1,8 @@
 
 package com.roshan.devopshub.security;
 
+import com.roshan.devopshub.user.User;
+import com.roshan.devopshub.user.UserRepository;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jws;
 import io.jsonwebtoken.JwtException;
@@ -15,13 +17,19 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Optional;
 
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtService jwtService;
+    private final UserRepository userRepository;
 
-    public JwtAuthenticationFilter(JwtService jwtService) {
+    public JwtAuthenticationFilter(
+            JwtService jwtService,
+            UserRepository userRepository
+    ) {
         this.jwtService = jwtService;
+        this.userRepository = userRepository;
     }
 
     @Override
@@ -42,24 +50,32 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         try {
             Jws<Claims> parsed = jwtService.parseAccessToken(token);
-            Claims claims = parsed.getPayload();
+            String subject = parsed.getPayload().getSubject();
 
-            String userId = claims.getSubject();
-            String role = claims.get("role", String.class);
-
-            if (userId == null || role == null
-                    || !List.of("ADMIN", "RESPONDER", "VIEWER")
-                    .contains(role)) {
+            if (subject == null || subject.isBlank()) {
                 SecurityContextHolder.clearContext();
                 filterChain.doFilter(request, response);
                 return;
             }
 
+            long userId = Long.parseLong(subject);
+            Optional<User> userOptional = userRepository.findById(userId);
+
+            if (userOptional.isEmpty()) {
+                SecurityContextHolder.clearContext();
+                filterChain.doFilter(request, response);
+                return;
+            }
+
+            User user = userOptional.get();
+
             var authentication =
                     new UsernamePasswordAuthenticationToken(
-                            userId,
+                            user.getId().toString(),
                             null,
-                            List.of(new SimpleGrantedAuthority("ROLE_" + role))
+                            List.of(new SimpleGrantedAuthority(
+                                    "ROLE_" + user.getRole().name()
+                            ))
                     );
 
             SecurityContextHolder.getContext()

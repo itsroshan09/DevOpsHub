@@ -1,6 +1,7 @@
 
 package com.roshan.devopshub.security;
 
+import com.roshan.devopshub.user.UserRepository;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -16,8 +17,10 @@ public class SecurityConfig {
 
     @Bean
     public JwtAuthenticationFilter jwtAuthenticationFilter(
-            JwtService jwtService) {
-        return new JwtAuthenticationFilter(jwtService);
+            JwtService jwtService,
+            UserRepository userRepository
+    ) {
+        return new JwtAuthenticationFilter(jwtService, userRepository);
     }
 
     @Bean
