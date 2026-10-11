@@ -1,8 +1,12 @@
+
 package com.roshan.devopshub.security;
 
 import com.roshan.devopshub.auth.AuthService;
 import com.roshan.devopshub.auth.LoginRequest;
 import com.roshan.devopshub.auth.LoginResponse;
+import com.roshan.devopshub.incident.Incident;
+import com.roshan.devopshub.incident.IncidentService;
+import com.roshan.devopshub.incident.IncidentSeverity;
 import com.roshan.devopshub.user.User;
 import com.roshan.devopshub.user.UserRepository;
 import com.roshan.devopshub.user.UserRole;
@@ -12,25 +16,27 @@ import io.jsonwebtoken.Jwts;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Import;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.MediaType;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RestController;
 import tools.jackson.databind.ObjectMapper;
 
+import java.util.List;
 import java.util.Optional;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
-
-import org.springframework.boot.test.context.TestConfiguration;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Import;
-import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RestController;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -52,6 +58,9 @@ class SecurityConfigTest {
     @MockitoBean
     private UserRepository userRepository;
 
+    @MockitoBean
+    private IncidentService incidentService;
+
     @Test
     void protectedEndpointShouldReturn401WithoutToken() throws Exception {
         mockMvc.perform(get("/api/incidents"))
@@ -63,6 +72,7 @@ class SecurityConfigTest {
     @Test
     void protectedEndpointShouldReturn401ForMalformedToken()
             throws Exception {
+
         when(jwtService.parseAccessToken("not-a-valid-token"))
                 .thenThrow(new io.jsonwebtoken.JwtException("Invalid token"));
 
@@ -89,35 +99,14 @@ class SecurityConfigTest {
         verify(authService).login(any(LoginRequest.class));
     }
 
-
     @Test
     void protectedEndpointShouldAcceptValidToken() throws Exception {
-        String token = "valid-test-token";
+        mockAuthenticatedUser(1L, UserRole.RESPONDER, "valid-test-token");
 
-        io.jsonwebtoken.Claims claims =
-                io.jsonwebtoken.Jwts.claims()
-                        .subject("1")
-                        .add("role", "RESPONDER")
-                        .build();
-
-        io.jsonwebtoken.Jws<io.jsonwebtoken.Claims> parsedToken =
-                org.mockito.Mockito.mock(io.jsonwebtoken.Jws.class);
-
-        org.mockito.Mockito.when(parsedToken.getPayload())
-                .thenReturn(claims);
-
-        org.mockito.Mockito.when(jwtService.parseAccessToken(token))
-                .thenReturn(parsedToken);
-        User user = mock(User.class);
-
-        when(user.getId()).thenReturn(1L);
-        when(user.getRole()).thenReturn(UserRole.RESPONDER);
-
-        when(userRepository.findById(1L))
-                .thenReturn(Optional.of(user));
+        stubEmptyIncidentPage();
 
         mockMvc.perform(get("/api/incidents")
-                        .header("Authorization", "Bearer " + token))
+                        .header("Authorization", "Bearer valid-test-token"))
                 .andExpect(status().isOk());
     }
 
@@ -146,30 +135,6 @@ class SecurityConfigTest {
         verify(userRepository).findById(999L);
     }
 
-    @TestConfiguration
-    static class RoleProbeConfiguration {
-
-        @Bean
-        RoleProbeController roleProbeController() {
-            return new RoleProbeController();
-        }
-    }
-
-    @RestController
-    static class RoleProbeController {
-
-        @GetMapping("/test/security/current-role")
-        public String currentRole() {
-            return SecurityContextHolder.getContext()
-                    .getAuthentication()
-                    .getAuthorities()
-                    .iterator()
-                    .next()
-                    .getAuthority();
-        }
-    }
-
-
     @Test
     void authenticatedRoleShouldComeFromDatabaseNotJwtClaim()
             throws Exception {
@@ -195,10 +160,129 @@ class SecurityConfigTest {
         mockMvc.perform(get("/test/security/current-role")
                         .header("Authorization", "Bearer " + token))
                 .andExpect(status().isOk())
-                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.content()
-                        .string("ROLE_VIEWER"));
+                .andExpect(
+                        org.springframework.test.web.servlet.result
+                                .MockMvcResultMatchers.content()
+                                .string("ROLE_VIEWER")
+                );
     }
 
+    @Test
+    void viewerShouldReceive403WhenCreatingIncident() throws Exception {
+        mockAuthenticatedUser(10L, UserRole.VIEWER, "test-token-10");
 
+        mockMvc.perform(post("/api/incidents")
+                        .header("Authorization", "Bearer test-token-10")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "title": "Test incident",
+                                  "description": "Created by authorization test",
+                                  "severity": "LOW"
+                                }
+                                """))
+                .andExpect(status().isForbidden());
 
+        verifyNoInteractions(incidentService);
+    }
+
+    @Test
+    void responderShouldPassAuthorizationWhenCreatingIncident()
+            throws Exception {
+
+        mockAuthenticatedUser(11L, UserRole.RESPONDER, "test-token-11");
+
+        String title = "Test incident";
+        String description = "Created by authorization test";
+        IncidentSeverity severity = IncidentSeverity.LOW;
+
+        Incident incident = new Incident(title, description, severity);
+
+        when(incidentService.createIncident(title, description, severity))
+                .thenReturn(incident);
+
+        mockMvc.perform(post("/api/incidents")
+                        .header("Authorization", "Bearer test-token-11")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "title": "Test incident",
+                                  "description": "Created by authorization test",
+                                  "severity": "LOW"
+                                }
+                                """))
+                .andExpect(status().isCreated());
+
+        verify(incidentService).createIncident(title, description, severity);
+    }
+
+    @Test
+    void viewerShouldBeAllowedToListIncidents() throws Exception {
+        mockAuthenticatedUser(12L, UserRole.VIEWER, "test-token-12");
+
+        stubEmptyIncidentPage();
+
+        mockMvc.perform(get("/api/incidents")
+                        .header("Authorization", "Bearer test-token-12"))
+                .andExpect(status().isOk());
+
+        verify(incidentService).getIncidents(
+                any(),
+                any(),
+                any(Pageable.class)
+        );
+    }
+
+    private void mockAuthenticatedUser(
+            Long userId,
+            UserRole databaseRole,
+            String token
+    ) {
+        Claims claims = Jwts.claims()
+                .subject(userId.toString())
+                .add("role", "ADMIN")
+                .build();
+
+        @SuppressWarnings("unchecked")
+        Jws<Claims> parsedToken = mock(Jws.class);
+
+        when(parsedToken.getPayload()).thenReturn(claims);
+        when(jwtService.parseAccessToken(token)).thenReturn(parsedToken);
+
+        User user = mock(User.class);
+        when(user.getId()).thenReturn(userId);
+        when(user.getRole()).thenReturn(databaseRole);
+        when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+    }
+
+    private void stubEmptyIncidentPage() {
+        when(incidentService.getIncidents(
+                any(),
+                any(),
+                any(Pageable.class)
+        )).thenReturn(new PageImpl<>(List.of()));
+    }
+
+    @TestConfiguration
+    static class RoleProbeConfiguration {
+
+        @Bean
+        RoleProbeController roleProbeController() {
+            return new RoleProbeController();
+        }
+    }
+
+    @RestController
+    static class RoleProbeController {
+
+        @GetMapping("/test/security/current-role")
+        public String currentRole() {
+            return SecurityContextHolder.getContext()
+                    .getAuthentication()
+                    .getAuthorities()
+                    .iterator()
+                    .next()
+                    .getAuthority();
+        }
+    }
 }
