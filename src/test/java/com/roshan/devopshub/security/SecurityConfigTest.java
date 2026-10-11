@@ -37,6 +37,8 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import com.roshan.devopshub.service.ServiceManagementService;
+
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -60,6 +62,9 @@ class SecurityConfigTest {
 
     @MockitoBean
     private IncidentService incidentService;
+
+    @MockitoBean
+    private ServiceManagementService serviceManagementService;
 
     @Test
     void protectedEndpointShouldReturn401WithoutToken() throws Exception {
@@ -347,5 +352,93 @@ class SecurityConfigTest {
 
         verifyNoInteractions(incidentService);
     }
+
+
+
+    @Test
+    void adminShouldBeAllowedToCreateService() throws Exception {
+        mockAuthenticatedUser(20L, UserRole.ADMIN, "admin-service-token");
+
+        when(serviceManagementService.createService(any()))
+                .thenReturn(new com.roshan.devopshub.service.ServiceResponse(
+                        1L,
+                        "Payments",
+                        "Payment processing",
+                        java.time.Instant.parse("2026-01-01T10:00:00Z"),
+                        java.time.Instant.parse("2026-01-01T10:00:00Z")
+                ));
+
+        mockMvc.perform(post("/api/services")
+                        .header("Authorization", "Bearer admin-service-token")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                            {
+                              "name": "Payments",
+                              "description": "Payment processing"
+                            }
+                            """))
+                .andExpect(status().isCreated());
+
+        verify(serviceManagementService).createService(any());
+    }
+
+    @Test
+    void responderShouldReceive403WhenCreatingService() throws Exception {
+        mockAuthenticatedUser(
+                21L, UserRole.RESPONDER, "responder-service-token"
+        );
+
+        mockMvc.perform(post("/api/services")
+                        .header("Authorization", "Bearer responder-service-token")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                            {
+                              "name": "Payments",
+                              "description": "Payment processing"
+                            }
+                            """))
+                .andExpect(status().isForbidden());
+
+        verifyNoInteractions(serviceManagementService);
+    }
+
+    @Test
+    void viewerShouldReceive403WhenCreatingService() throws Exception {
+        mockAuthenticatedUser(
+                22L, UserRole.VIEWER, "viewer-service-token"
+        );
+
+        mockMvc.perform(post("/api/services")
+                        .header("Authorization", "Bearer viewer-service-token")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                            {
+                              "name": "Payments",
+                              "description": "Payment processing"
+                            }
+                            """))
+                .andExpect(status().isForbidden());
+
+        verifyNoInteractions(serviceManagementService);
+    }
+    @Test
+    void viewerShouldBeAllowedToListServices() throws Exception {
+        mockAuthenticatedUser(23L, UserRole.VIEWER, "viewer-read-services-token");
+
+        when(serviceManagementService.getAllServices())
+                .thenReturn(List.of());
+
+        mockMvc.perform(get("/api/services")
+                        .header(
+                                "Authorization",
+                                "Bearer viewer-read-services-token"
+                        ))
+                .andExpect(status().isOk());
+
+        verify(serviceManagementService).getAllServices();
+    }
+
+
+
 
 }

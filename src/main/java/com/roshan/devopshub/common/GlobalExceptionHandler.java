@@ -14,6 +14,8 @@ import org.springframework.http.converter.HttpMessageNotReadableException;
 import com.roshan.devopshub.auth.EmailAlreadyExistsException;
 
 import com.roshan.devopshub.auth.InvalidCredentialsException;
+import com.roshan.devopshub.service.DuplicateServiceNameException;
+import com.roshan.devopshub.service.ServiceNotFoundException;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -114,6 +116,32 @@ public class GlobalExceptionHandler {
                 .body(response);
     }
 
+    @ExceptionHandler(DuplicateServiceNameException.class)
+    public ResponseEntity<ApiErrorResponse> handleDuplicateServiceName(
+            DuplicateServiceNameException exception) {
 
+        ApiErrorResponse response = new ApiErrorResponse(
+                Instant.now(),
+                HttpStatus.CONFLICT.value(),
+                "Service name already exists",
+                List.of(exception.getMessage())
+        );
+
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(response);
+    }
+
+    @ExceptionHandler(ServiceNotFoundException.class)
+    public ResponseEntity<ApiErrorResponse> handleServiceNotFound(
+            ServiceNotFoundException exception) {
+
+        ApiErrorResponse response = new ApiErrorResponse(
+                Instant.now(),
+                HttpStatus.NOT_FOUND.value(),
+                "Service not found",
+                List.of(exception.getMessage())
+        );
+
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
+    }
 
 }

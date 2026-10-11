@@ -70,6 +70,18 @@ public class SecurityConfig {
                                 HttpMethod.POST,
                                 "/api/incidents/*/updates"
                         ).hasAnyRole("ADMIN", "RESPONDER")
+                                // Create services: ADMIN only
+                                .requestMatchers(
+                                        HttpMethod.POST,
+                                        "/api/services"
+                                ).hasRole("ADMIN")
+
+// Read services: all authenticated roles
+                                .requestMatchers(
+                                        HttpMethod.GET,
+                                        "/api/services",
+                                        "/api/services/**"
+                                ).hasAnyRole("ADMIN", "RESPONDER", "VIEWER")
 
                         // Read incidents, updates, and history: all roles
                         .requestMatchers(
