@@ -10,6 +10,8 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import java.time.Instant;
 import java.util.List;
+import org.springframework.http.converter.HttpMessageNotReadableException;
+
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -57,6 +59,23 @@ public class GlobalExceptionHandler {
                 HttpStatus.BAD_REQUEST.value(),
                 "Invalid request",
                 List.of(exception.getMessage())
+        );
+
+        return ResponseEntity.badRequest().body(response);
+    }
+
+
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ApiErrorResponse> handleMalformedRequest(
+            HttpMessageNotReadableException exception) {
+
+        ApiErrorResponse response = new ApiErrorResponse(
+                Instant.now(),
+                HttpStatus.BAD_REQUEST.value(),
+                "Malformed request",
+                List.of(
+                        "Request body contains invalid JSON or an unsupported field value"
+                )
         );
 
         return ResponseEntity.badRequest().body(response);

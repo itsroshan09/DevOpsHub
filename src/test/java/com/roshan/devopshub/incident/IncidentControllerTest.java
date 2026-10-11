@@ -556,6 +556,27 @@ class IncidentControllerTest {
         verifyNoInteractions(incidentService);
     }
 
+    @Test
+    void createIncidentShouldReturn400WhenSeverityIsInvalid() throws Exception {
+        String requestBody = """
+            {
+                "title": "Payment API failure",
+                "description": "Requests are failing.",
+                "severity": "URGENT"
+            }
+            """;
+
+        mockMvc.perform(post("/api/incidents")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestBody))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.error").value("Malformed request"))
+                .andExpect(jsonPath("$.details[0]")
+                        .value("Request body contains invalid JSON or an unsupported field value"));
+
+        verifyNoInteractions(incidentService);
+    }
 
 
 }
