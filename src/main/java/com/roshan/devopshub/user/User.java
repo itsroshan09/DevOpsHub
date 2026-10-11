@@ -30,6 +30,11 @@ public class User {
     @Column(nullable = false, length = 20)
     private UserRole role;
 
+
+    @Column(name = "password_hash", length = 255)
+    private String passwordHash;
+
+
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
@@ -67,4 +72,14 @@ public class User {
     public Instant getCreatedAt() {
         return createdAt;
     }
+
+
+    public String getPasswordHash() {
+        return passwordHash;
+    }
+
+    public void setPasswordHash(String passwordHash) {
+        this.passwordHash = passwordHash;
+    }
+
 }
