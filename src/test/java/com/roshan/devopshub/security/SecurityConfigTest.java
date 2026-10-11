@@ -285,4 +285,67 @@ class SecurityConfigTest {
                     .getAuthority();
         }
     }
+
+    @Test
+    void viewerShouldReceive403WhenAssigningIncident() throws Exception {
+        mockAuthenticatedUser(20L, UserRole.VIEWER, "viewer-assign-token");
+
+        mockMvc.perform(put("/api/incidents/1/assignee")
+                        .header(
+                                "Authorization",
+                                "Bearer viewer-assign-token"
+                        )
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                            {
+                              "userId": 21
+                            }
+                            """))
+                .andExpect(status().isForbidden());
+
+        verifyNoInteractions(incidentService);
+    }
+
+    @Test
+    void viewerShouldReceive403WhenChangingIncidentStatus()
+            throws Exception {
+        mockAuthenticatedUser(22L, UserRole.VIEWER, "viewer-transition-token");
+
+        mockMvc.perform(post("/api/incidents/1/transitions")
+                        .header(
+                                "Authorization",
+                                "Bearer viewer-transition-token"
+                        )
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                            {
+                              "status": "IN_PROGRESS"
+                            }
+                            """))
+                .andExpect(status().isForbidden());
+
+        verifyNoInteractions(incidentService);
+    }
+
+    @Test
+    void viewerShouldReceive403WhenAddingIncidentUpdate()
+            throws Exception {
+        mockAuthenticatedUser(23L, UserRole.VIEWER, "viewer-update-token");
+
+        mockMvc.perform(post("/api/incidents/1/updates")
+                        .header(
+                                "Authorization",
+                                "Bearer viewer-update-token"
+                        )
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                            {
+                              "message": "Investigation update"
+                            }
+                            """))
+                .andExpect(status().isForbidden());
+
+        verifyNoInteractions(incidentService);
+    }
+
 }

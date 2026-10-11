@@ -47,15 +47,38 @@ public class SecurityConfig {
                                 "/api/auth/login"
                         ).permitAll()
 
-                        .requestMatchers(HttpMethod.POST, "/api/incidents")
-                        .hasAnyRole("ADMIN", "RESPONDER")
+                        // Incident creation: ADMIN and RESPONDER
+                        .requestMatchers(
+                                HttpMethod.POST,
+                                "/api/incidents"
+                        ).hasAnyRole("ADMIN", "RESPONDER")
 
-                        .requestMatchers(HttpMethod.GET, "/api/incidents/**")
-                        .hasAnyRole("ADMIN", "RESPONDER", "VIEWER")
+                        // Incident assignment: ADMIN and RESPONDER
+                        .requestMatchers(
+                                HttpMethod.PUT,
+                                "/api/incidents/*/assignee"
+                        ).hasAnyRole("ADMIN", "RESPONDER")
 
-                        .requestMatchers(HttpMethod.GET, "/api/incidents")
-                        .hasAnyRole("ADMIN", "RESPONDER", "VIEWER")
+                        // Status transitions: ADMIN and RESPONDER
+                        .requestMatchers(
+                                HttpMethod.POST,
+                                "/api/incidents/*/transitions"
+                        ).hasAnyRole("ADMIN", "RESPONDER")
 
+                        // Add investigation updates: ADMIN and RESPONDER
+                        .requestMatchers(
+                                HttpMethod.POST,
+                                "/api/incidents/*/updates"
+                        ).hasAnyRole("ADMIN", "RESPONDER")
+
+                        // Read incidents, updates, and history: all roles
+                        .requestMatchers(
+                                HttpMethod.GET,
+                                "/api/incidents",
+                                "/api/incidents/**"
+                        ).hasAnyRole("ADMIN", "RESPONDER", "VIEWER")
+
+                        // Everything else still requires authentication
                         .anyRequest().authenticated()
                 )
 
