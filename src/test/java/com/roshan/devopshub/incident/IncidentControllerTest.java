@@ -182,7 +182,8 @@ class IncidentControllerTest {
                         .value("API gateway returning 500 errors"))
                 .andExpect(jsonPath("$.totalElements").value(1))
                 .andExpect(jsonPath("$.totalPages").value(1))
-                .andExpect(jsonPath("$.number").value(0));
+                .andExpect(jsonPath("$.page").value(0))
+                .andExpect(jsonPath("$.size").value(10));
 
         verify(incidentService).getIncidents(
                 isNull(),

@@ -69,7 +69,7 @@ public class IncidentController {
 
 
     @GetMapping
-    public Page<IncidentResponse> getIncidents(
+    public IncidentPageResponse getIncidents(
             @RequestParam(required = false) IncidentStatus status,
             @RequestParam(required = false) IncidentSeverity severity,
             @RequestParam(defaultValue = "0") int page,
@@ -91,8 +91,11 @@ public class IncidentController {
                 Sort.by(Sort.Direction.DESC, "createdAt")
         );
 
-        return incidentService.getIncidents(status, severity, pageable)
-                .map(IncidentResponse::from);
+        Page<IncidentResponse> result =
+                incidentService.getIncidents(status, severity, pageable)
+                        .map(IncidentResponse::from);
+
+        return IncidentPageResponse.from(result);
     }
 
 
