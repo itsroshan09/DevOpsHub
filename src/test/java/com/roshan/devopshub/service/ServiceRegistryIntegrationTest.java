@@ -12,6 +12,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.transaction.TransactionSystemException;
+
+
 @SpringBootTest
 @Transactional
 class ServiceRegistryIntegrationTest {
@@ -64,4 +68,41 @@ class ServiceRegistryIntegrationTest {
                         .count()
         );
     }
+
+
+    @Test
+    void shouldEnforceUniqueServiceNameAtDatabaseLevel() {
+        String name = "unique-constraint-" + UUID.randomUUID();
+
+        serviceRepository.saveAndFlush(
+                new Service(name, "Original service")
+        );
+
+        DataIntegrityViolationException exception = assertThrows(
+                DataIntegrityViolationException.class,
+                () -> serviceRepository.saveAndFlush(
+                        new Service(name, "Duplicate service")
+                )
+        );
+
+        Throwable current = exception;
+
+        while (current != null) {
+            if (current instanceof
+                    org.hibernate.exception.ConstraintViolationException violation) {
+                assertEquals(
+                        "uq_services_name",
+                        violation.getConstraintName()
+                );
+                return;
+            }
+
+            current = current.getCause();
+        }
+
+        throw new AssertionError(
+                "Expected a Hibernate constraint violation in the exception chain"
+        );
+    }
+
 }

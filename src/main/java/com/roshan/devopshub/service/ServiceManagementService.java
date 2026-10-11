@@ -1,6 +1,6 @@
-
 package com.roshan.devopshub.service;
 
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -10,15 +10,20 @@ import java.util.List;
 public class ServiceManagementService {
 
     private final ServiceRepository serviceRepository;
+    private final ServicePersistenceWriter servicePersistenceWriter;
 
-    public ServiceManagementService(ServiceRepository serviceRepository) {
+    public ServiceManagementService(
+            ServiceRepository serviceRepository,
+            ServicePersistenceWriter servicePersistenceWriter
+    ) {
         this.serviceRepository = serviceRepository;
+        this.servicePersistenceWriter = servicePersistenceWriter;
     }
 
-    @Transactional
     public ServiceResponse createService(ServiceCreateRequest request) {
         String normalizedName = request.name().trim();
 
+        // Fast, friendly check for ordinary duplicate requests.
         if (serviceRepository.existsByName(normalizedName)) {
             throw new DuplicateServiceNameException();
         }
@@ -28,7 +33,21 @@ public class ServiceManagementService {
                 request.description()
         );
 
-        Service savedService = serviceRepository.save(service);
+        Service savedService;
+
+        try {
+            // The writer manages the database write transaction.
+            savedService = servicePersistenceWriter.save(service);
+        } catch (DataIntegrityViolationException exception) {
+            // Translate only the specific service-name constraint violation.
+            if (ServiceConstraintViolationDetector
+                    .isDuplicateServiceName(exception)) {
+                throw new DuplicateServiceNameException();
+            }
+
+            // Preserve unrelated database errors.
+            throw exception;
+        }
 
         return toResponse(savedService);
     }
