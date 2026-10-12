@@ -11,6 +11,7 @@ import org.springframework.security.config.annotation.web.configurers.AbstractHt
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import jakarta.servlet.DispatcherType;
 
 @Configuration
 public class SecurityConfig {
@@ -41,11 +42,13 @@ public class SecurityConfig {
                                         HttpServletResponse.SC_UNAUTHORIZED)))
 
                 .authorizeHttpRequests(authorize -> authorize
-                        .requestMatchers(
-                                HttpMethod.POST,
-                                "/api/auth/register",
-                                "/api/auth/login"
-                        ).permitAll()
+                                .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
+
+                                .requestMatchers(
+                                        HttpMethod.POST,
+                                        "/api/auth/register",
+                                        "/api/auth/login"
+                                ).permitAll()
 
                         // Incident creation: ADMIN and RESPONDER
                         .requestMatchers(
