@@ -19,7 +19,7 @@ import org.springframework.data.domain.PageRequest;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
-
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -211,24 +211,28 @@ class IncidentServiceTest {
         verify(auditEventRepository, never()).save(any(AuditEvent.class));
     }
 
+
     @Test
-    void addUpdateShouldSaveAndReturnUpdate() {
+    void addUpdateShouldSaveAndAuditUpdateWithActor() {
         Incident incident = new Incident(
                 "Payment API failure",
                 "Checkout requests are failing.",
                 IncidentSeverity.HIGH
         );
+        User actor = createTestUser();
         IncidentUpdate update = new IncidentUpdate(
                 incident,
                 "Database connection pool exhaustion identified."
         );
 
         when(incidentRepository.findById(17L)).thenReturn(Optional.of(incident));
+        when(userRepository.findById(1L)).thenReturn(Optional.of(actor));
         when(incidentUpdateRepository.save(any(IncidentUpdate.class))).thenReturn(update);
 
         IncidentUpdate result = incidentService.addUpdate(
                 17L,
-                "Database connection pool exhaustion identified."
+                "Database connection pool exhaustion identified.",
+                1L
         );
 
         assertNotNull(result);
@@ -237,8 +241,16 @@ class IncidentServiceTest {
         assertEquals("Database connection pool exhaustion identified.", result.getMessage());
 
         verify(incidentRepository).findById(17L);
+        verify(userRepository).findById(1L);
         verify(incidentUpdateRepository).save(any(IncidentUpdate.class));
+        verify(auditEventRepository).save(argThat(event ->
+                event.getActor() == actor
+                        && event.getIncident() == incident
+                        && "INVESTIGATION_UPDATE".equals(event.getAction())
+                        && "Database connection pool exhaustion identified.".equals(event.getDetails())
+        ));
     }
+
 
     @Test
     void addUpdateShouldThrowWhenIncidentDoesNotExist() {
@@ -246,12 +258,15 @@ class IncidentServiceTest {
 
         assertThrows(
                 IncidentNotFoundException.class,
-                () -> incidentService.addUpdate(999L, "Investigation update")
+                () -> incidentService.addUpdate(999L, "Investigation update", 1L)
         );
 
         verify(incidentRepository).findById(999L);
+        verifyNoInteractions(userRepository);
         verify(incidentUpdateRepository, never()).save(any(IncidentUpdate.class));
+        verify(auditEventRepository, never()).save(any(AuditEvent.class));
     }
+
 
     @Test
     void getIncidentUpdatesShouldReturnUpdatesInRepositoryOrder() {
@@ -296,6 +311,7 @@ class IncidentServiceTest {
         verify(incidentUpdateRepository, never()).findByIncidentIdOrderByCreatedAtAsc(999L);
     }
 
+
     @Test
     void getIncidentHistoryShouldCombineAndSortEventsChronologically() {
         Incident incident = new Incident(
@@ -310,22 +326,30 @@ class IncidentServiceTest {
                 incident,
                 "Investigating database connections."
         );
-        AuditEvent auditEvent = new AuditEvent(
+        AuditEvent statusEvent = new AuditEvent(
                 incident,
                 "STATUS_CHANGED",
                 "OPEN -> IN_PROGRESS"
         );
+        AuditEvent updateAuditEvent = new AuditEvent(
+                incident,
+                createTestUser(),
+                "INVESTIGATION_UPDATE",
+                "Investigating database connections."
+        );
 
         setCreatedAt(update, later);
-        setCreatedAt(auditEvent, earlier);
+        setCreatedAt(statusEvent, earlier);
+        setCreatedAt(updateAuditEvent, later);
 
         when(incidentRepository.findById(17L)).thenReturn(Optional.of(incident));
         when(incidentUpdateRepository.findByIncidentIdOrderByCreatedAtAsc(17L))
                 .thenReturn(List.of(update));
         when(auditEventRepository.findByIncidentIdOrderByCreatedAtAscIdAsc(17L))
-                .thenReturn(List.of(auditEvent));
+                .thenReturn(List.of(statusEvent, updateAuditEvent));
 
-        List<IncidentHistoryItemResponse> history = incidentService.getIncidentHistory(17L);
+        List<IncidentHistoryItemResponse> history =
+                incidentService.getIncidentHistory(17L);
 
         assertEquals(2, history.size());
         assertEquals("STATUS_CHANGED", history.get(0).type());
@@ -339,6 +363,7 @@ class IncidentServiceTest {
         verify(incidentUpdateRepository).findByIncidentIdOrderByCreatedAtAsc(17L);
         verify(auditEventRepository).findByIncidentIdOrderByCreatedAtAscIdAsc(17L);
     }
+
 
     private void setCreatedAt(Object entity, Instant timestamp) {
         try {

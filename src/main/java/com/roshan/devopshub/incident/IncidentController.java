@@ -118,14 +118,17 @@ public class IncidentController {
         return IncidentResponse.from(incident);
     }
 
+
     @PostMapping("/{id}/updates")
     public ResponseEntity<IncidentUpdateResponse> addIncidentUpdate(
             @PathVariable Long id,
-            @Valid @RequestBody CreateIncidentUpdateRequest request) {
-
+            @AuthenticationPrincipal String actorId,
+            @Valid @RequestBody CreateIncidentUpdateRequest request
+    ) {
         IncidentUpdate update = incidentService.addUpdate(
                 id,
-                request.message()
+                request.message(),
+                Long.parseLong(actorId)
         );
 
         IncidentUpdateResponse response = new IncidentUpdateResponse(
@@ -137,6 +140,7 @@ public class IncidentController {
 
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
+
 
 
     @GetMapping("/{id}/updates")

@@ -381,6 +381,7 @@ class IncidentControllerTest {
         verifyNoInteractions(incidentService);
     }
 
+
     @Test
     void addIncidentUpdateShouldReturn201WhenRequestIsValid()
             throws Exception {
@@ -398,16 +399,18 @@ class IncidentControllerTest {
 
         when(incidentService.addUpdate(
                 eq(17L),
-                eq("Database connection pool exhaustion identified.")
+                eq("Database connection pool exhaustion identified."),
+                eq(1L)
         )).thenReturn(update);
 
         String request = """
-                {
-                  "message": "Database connection pool exhaustion identified."
-                }
-                """;
+            {
+              "message": "Database connection pool exhaustion identified."
+            }
+            """;
 
         mockMvc.perform(post("/api/incidents/17/updates")
+                        .with(authenticateAsResponder("1"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(request))
                 .andExpect(status().isCreated())
@@ -416,9 +419,11 @@ class IncidentControllerTest {
 
         verify(incidentService).addUpdate(
                 17L,
-                "Database connection pool exhaustion identified."
+                "Database connection pool exhaustion identified.",
+                1L
         );
     }
+
 
     @Test
     void addIncidentUpdateShouldReturn400WhenMessageIsBlank()
@@ -438,22 +443,25 @@ class IncidentControllerTest {
         verifyNoInteractions(incidentService);
     }
 
+
     @Test
     void addIncidentUpdateShouldReturn404WhenIncidentDoesNotExist()
             throws Exception {
 
         when(incidentService.addUpdate(
                 eq(999L),
-                eq("Investigation update")
+                eq("Investigation update"),
+                eq(1L)
         )).thenThrow(new IncidentNotFoundException(999L));
 
         String request = """
-                {
-                  "message": "Investigation update"
-                }
-                """;
+            {
+              "message": "Investigation update"
+            }
+            """;
 
         mockMvc.perform(post("/api/incidents/999/updates")
+                        .with(authenticateAsResponder("1"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(request))
                 .andExpect(status().isNotFound())
@@ -462,9 +470,11 @@ class IncidentControllerTest {
 
         verify(incidentService).addUpdate(
                 999L,
-                "Investigation update"
+                "Investigation update",
+                1L
         );
     }
+
 
     @Test
     void getIncidentUpdatesShouldReturn200WhenUpdatesExist()

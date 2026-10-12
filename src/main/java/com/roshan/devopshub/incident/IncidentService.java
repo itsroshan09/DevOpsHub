@@ -120,15 +120,33 @@ public class IncidentService {
         return savedIncident;
     }
 
+
     @Transactional
-    public IncidentUpdate addUpdate(Long incidentId, String message) {
+    public IncidentUpdate addUpdate(
+            Long incidentId,
+            String message,
+            Long actorId
+    ) {
         Incident incident = incidentRepository.findById(incidentId)
                 .orElseThrow(() -> new IncidentNotFoundException(incidentId));
 
-        IncidentUpdate update = new IncidentUpdate(incident, message);
+        User actor = findUser(actorId);
 
-        return incidentUpdateRepository.save(update);
+        IncidentUpdate update = new IncidentUpdate(incident, message);
+        IncidentUpdate savedUpdate = incidentUpdateRepository.save(update);
+
+        AuditEvent auditEvent = new AuditEvent(
+                incident,
+                actor,
+                "INVESTIGATION_UPDATE",
+                savedUpdate.getMessage()
+        );
+
+        auditEventRepository.save(auditEvent);
+
+        return savedUpdate;
     }
+
 
     @Transactional(readOnly = true)
     public List<IncidentUpdate> getIncidentUpdates(Long incidentId) {
@@ -139,6 +157,7 @@ public class IncidentService {
                 .findByIncidentIdOrderByCreatedAtAsc(incidentId);
     }
 
+
     @Transactional(readOnly = true)
     public List<IncidentHistoryItemResponse> getIncidentHistory(
             Long incidentId
@@ -148,6 +167,7 @@ public class IncidentService {
 
         List<IncidentHistoryItemResponse> history = new ArrayList<>();
 
+        // Add investigation updates from the IncidentUpdate table.
         incidentUpdateRepository
                 .findByIncidentIdOrderByCreatedAtAsc(incidentId)
                 .forEach(update -> history.add(
@@ -158,8 +178,13 @@ public class IncidentService {
                         )
                 ));
 
+        // Add audit events, excluding investigation updates already added above.
         auditEventRepository
                 .findByIncidentIdOrderByCreatedAtAscIdAsc(incidentId)
+                .stream()
+                .filter(event ->
+                        !"INVESTIGATION_UPDATE".equals(event.getAction())
+                )
                 .forEach(event -> history.add(
                         new IncidentHistoryItemResponse(
                                 event.getAction(),
@@ -168,6 +193,7 @@ public class IncidentService {
                         )
                 ));
 
+        // Sort all history entries chronologically.
         history.sort(
                 Comparator.comparing(
                                 IncidentHistoryItemResponse::createdAt
@@ -179,6 +205,7 @@ public class IncidentService {
 
         return history;
     }
+
 
     @Transactional
     public Incident assignIncident(
