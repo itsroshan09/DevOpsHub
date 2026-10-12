@@ -376,6 +376,114 @@ class IncidentAuditTransactionIntegrationTest {
             """);
     }
 
+
+    @Test
+    void shouldRollbackInvestigationUpdateWhenAuditInsertFails() {
+        User actor = createTestActor("update-rollback");
+        Long actorId = actor.getId();
+
+        Incident incident = incidentService.createIncident(
+                actorId,
+                "Investigation update rollback test",
+                "Verify update and audit rollback.",
+                IncidentSeverity.HIGH
+        );
+
+        Long incidentId = incident.getId();
+        String message = "Investigation update " + java.util.UUID.randomUUID();
+
+        try {
+            installFailingInvestigationUpdateAuditTrigger();
+
+            assertThrows(
+                    DataAccessException.class,
+                    () -> incidentService.addUpdate(
+                            incidentId,
+                            message,
+                            actorId
+                    )
+            );
+
+            Integer updateCount = jdbcTemplate.queryForObject(
+                    """
+                    SELECT COUNT(*)
+                    FROM incident_updates
+                    WHERE incident_id = ? AND message = ?
+                    """,
+                    Integer.class,
+                    incidentId,
+                    message
+            );
+
+            assertEquals(
+                    0,
+                    updateCount,
+                    "The investigation update should have rolled back"
+            );
+
+            Integer auditCount = jdbcTemplate.queryForObject(
+                    """
+                    SELECT COUNT(*)
+                    FROM audit_events
+                    WHERE incident_id = ?
+                      AND action = 'INVESTIGATION_UPDATE'
+                      AND details = ?
+                    """,
+                    Integer.class,
+                    incidentId,
+                    message
+            );
+
+            assertEquals(
+                    0,
+                    auditCount,
+                    "The failed investigation update must not have an audit event"
+            );
+        } finally {
+            removeFailingInvestigationUpdateAuditTrigger();
+        }
+    }
+
+    private void installFailingInvestigationUpdateAuditTrigger() {
+        jdbcTemplate.execute("""
+            CREATE OR REPLACE FUNCTION
+                devopshub_test_fail_investigation_update_audit_insert()
+            RETURNS trigger AS $$
+            BEGIN
+                IF NEW.action = 'INVESTIGATION_UPDATE' THEN
+                    RAISE EXCEPTION
+                        'Intentional investigation update audit failure';
+                END IF;
+
+                RETURN NEW;
+            END;
+            $$ LANGUAGE plpgsql
+            """);
+
+        jdbcTemplate.execute("""
+            CREATE TRIGGER
+                devopshub_test_fail_investigation_update_audit_trigger
+            BEFORE INSERT ON audit_events
+            FOR EACH ROW
+            EXECUTE FUNCTION
+                devopshub_test_fail_investigation_update_audit_insert()
+            """);
+    }
+
+    private void removeFailingInvestigationUpdateAuditTrigger() {
+        jdbcTemplate.execute("""
+            DROP TRIGGER IF EXISTS
+                devopshub_test_fail_investigation_update_audit_trigger
+            ON audit_events
+            """);
+
+        jdbcTemplate.execute("""
+            DROP FUNCTION IF EXISTS
+                devopshub_test_fail_investigation_update_audit_insert()
+            """);
+    }
+
+
     private void removeFailingAssignmentAuditTrigger() {
         jdbcTemplate.execute("""
             DROP TRIGGER IF EXISTS
