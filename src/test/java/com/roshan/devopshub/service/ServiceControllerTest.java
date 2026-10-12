@@ -1,10 +1,15 @@
-
 package com.roshan.devopshub.service;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
+import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -20,6 +25,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(ServiceController.class)
+@Import(ServiceControllerTest.TestSecurityConfig.class)
 class ServiceControllerTest {
 
     @Autowired
@@ -95,7 +101,9 @@ class ServiceControllerTest {
     }
 
     @Test
-    void getServiceByIdShouldReturn404WhenMissing() throws Exception {
+    void getServiceByIdShouldReturn404WhenMissing()
+            throws Exception {
+
         when(serviceManagementService.getServiceById(99L))
                 .thenThrow(new ServiceNotFoundException(99L));
 
@@ -113,11 +121,11 @@ class ServiceControllerTest {
                 .thenThrow(new DuplicateServiceNameException());
 
         String request = """
-            {
-              "name": "Payments",
-              "description": "Payment processing"
-            }
-            """;
+                {
+                  "name": "Payments",
+                  "description": "Payment processing"
+                }
+                """;
 
         mockMvc.perform(post("/api/services")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -126,5 +134,22 @@ class ServiceControllerTest {
                 .andExpect(jsonPath("$.status").value(409))
                 .andExpect(jsonPath("$.error")
                         .value("Service name already exists"));
+    }
+
+    @TestConfiguration(proxyBeanMethods = false)
+    static class TestSecurityConfig {
+
+        @Bean
+        SecurityFilterChain testSecurityFilterChain(
+                HttpSecurity http
+        ) throws Exception {
+
+            return http
+                    .csrf(AbstractHttpConfigurer::disable)
+                    .authorizeHttpRequests(authorize ->
+                            authorize.anyRequest().permitAll()
+                    )
+                    .build();
+        }
     }
 }

@@ -1,37 +1,46 @@
+
 package com.roshan.devopshub.incident;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
-import org.springframework.http.MediaType;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Import;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.http.MediaType;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.request.RequestPostProcessor;
 
+import java.time.Instant;
 import java.util.List;
-import static org.mockito.ArgumentMatchers.eq;
-import org.springframework.data.domain.Pageable;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
-
-import static org.mockito.Mockito.never;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import org.springframework.http.MediaType;
-
-import java.time.Instant;
 
 @WebMvcTest(IncidentController.class)
+@Import(IncidentControllerTest.TestSecurityConfig.class)
 class IncidentControllerTest {
 
     @Autowired
@@ -39,6 +48,40 @@ class IncidentControllerTest {
 
     @MockitoBean
     private IncidentService incidentService;
+
+    @TestConfiguration(proxyBeanMethods = false)
+    static class TestSecurityConfig {
+
+        @Bean
+        SecurityFilterChain testSecurityFilterChain(
+                HttpSecurity http
+        ) throws Exception {
+
+            return http
+                    .csrf(AbstractHttpConfigurer::disable)
+                    .authorizeHttpRequests(authorize ->
+                            authorize.anyRequest().permitAll()
+                    )
+                    .build();
+        }
+    }
+
+    private RequestPostProcessor authenticateAsResponder(
+            String userId
+    ) {
+        var authenticationToken =
+                new UsernamePasswordAuthenticationToken(
+                        userId,
+                        null,
+                        List.of(
+                                new SimpleGrantedAuthority(
+                                        "ROLE_RESPONDER"
+                                )
+                        )
+                );
+
+        return authentication(authenticationToken);
+    }
 
     @Test
     void createIncidentShouldNotCallServiceWhenTitleIsBlank()
@@ -71,7 +114,10 @@ class IncidentControllerTest {
         );
 
         when(incidentService.createIncident(
-                any(), any(), any()
+                anyLong(),
+                anyString(),
+                anyString(),
+                any(IncidentSeverity.class)
         )).thenReturn(incident);
 
         String request = """
@@ -83,6 +129,7 @@ class IncidentControllerTest {
                 """;
 
         mockMvc.perform(post("/api/incidents")
+                        .with(authenticateAsResponder("1"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(request))
                 .andExpect(status().isCreated())
@@ -90,6 +137,13 @@ class IncidentControllerTest {
                         .value("API gateway returning 500 errors"))
                 .andExpect(jsonPath("$.severity").value("HIGH"))
                 .andExpect(jsonPath("$.status").value("OPEN"));
+
+        verify(incidentService).createIncident(
+                1L,
+                "API gateway returning 500 errors",
+                "Checkout requests are failing intermittently.",
+                IncidentSeverity.HIGH
+        );
     }
 
     @Test
@@ -111,6 +165,8 @@ class IncidentControllerTest {
                 .andExpect(jsonPath("$.error")
                         .value("Validation failed"))
                 .andExpect(jsonPath("$.details").isArray());
+
+        verifyNoInteractions(incidentService);
     }
 
     @Test
@@ -154,7 +210,8 @@ class IncidentControllerTest {
     }
 
     @Test
-    void getIncidentsShouldReturnPaginatedResults() throws Exception {
+    void getIncidentsShouldReturnPaginatedResults()
+            throws Exception {
 
         Incident incident = new Incident(
                 "API gateway returning 500 errors",
@@ -168,7 +225,6 @@ class IncidentControllerTest {
                 1
         );
 
-        // No filters were supplied, so both filter arguments are null.
         when(incidentService.getIncidents(
                 isNull(),
                 isNull(),
@@ -251,7 +307,8 @@ class IncidentControllerTest {
     }
 
     @Test
-    void getIncidentsShouldPassFiltersToService() throws Exception {
+    void getIncidentsShouldPassFiltersToService()
+            throws Exception {
 
         when(incidentService.getIncidents(
                 eq(IncidentStatus.OPEN),
@@ -281,26 +338,32 @@ class IncidentControllerTest {
                 "Checkout requests are failing.",
                 IncidentSeverity.HIGH
         );
+
         incident.transitionTo(IncidentStatus.IN_PROGRESS);
 
         when(incidentService.transitionStatus(
-                17L, IncidentStatus.IN_PROGRESS
+                eq(17L),
+                eq(IncidentStatus.IN_PROGRESS),
+                eq(1L)
         )).thenReturn(incident);
 
         String request = """
-            {
-              "status": "IN_PROGRESS"
-            }
-            """;
+                {
+                  "status": "IN_PROGRESS"
+                }
+                """;
 
         mockMvc.perform(post("/api/incidents/17/transitions")
+                        .with(authenticateAsResponder("1"))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(request))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("IN_PROGRESS"));
 
         verify(incidentService).transitionStatus(
-                17L, IncidentStatus.IN_PROGRESS
+                17L,
+                IncidentStatus.IN_PROGRESS,
+                1L
         );
     }
 
@@ -317,7 +380,6 @@ class IncidentControllerTest {
 
         verifyNoInteractions(incidentService);
     }
-
 
     @Test
     void addIncidentUpdateShouldReturn201WhenRequestIsValid()
@@ -340,10 +402,10 @@ class IncidentControllerTest {
         )).thenReturn(update);
 
         String request = """
-            {
-              "message": "Database connection pool exhaustion identified."
-            }
-            """;
+                {
+                  "message": "Database connection pool exhaustion identified."
+                }
+                """;
 
         mockMvc.perform(post("/api/incidents/17/updates")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -358,16 +420,15 @@ class IncidentControllerTest {
         );
     }
 
-
     @Test
     void addIncidentUpdateShouldReturn400WhenMessageIsBlank()
             throws Exception {
 
         String request = """
-            {
-              "message": "   "
-            }
-            """;
+                {
+                  "message": "   "
+                }
+                """;
 
         mockMvc.perform(post("/api/incidents/17/updates")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -387,10 +448,10 @@ class IncidentControllerTest {
         )).thenThrow(new IncidentNotFoundException(999L));
 
         String request = """
-            {
-              "message": "Investigation update"
-            }
-            """;
+                {
+                  "message": "Investigation update"
+                }
+                """;
 
         mockMvc.perform(post("/api/incidents/999/updates")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -399,7 +460,10 @@ class IncidentControllerTest {
                 .andExpect(jsonPath("$.error")
                         .value("Incident not found"));
 
-        verify(incidentService).addUpdate(999L, "Investigation update");
+        verify(incidentService).addUpdate(
+                999L,
+                "Investigation update"
+        );
     }
 
     @Test
@@ -460,7 +524,9 @@ class IncidentControllerTest {
     }
 
     @Test
-    void getIncidentHistoryShouldReturnChronologicalHistory() throws Exception {
+    void getIncidentHistoryShouldReturnChronologicalHistory()
+            throws Exception {
+
         Instant earlier = Instant.parse("2026-10-11T10:00:00Z");
         Instant later = Instant.parse("2026-10-11T10:05:00Z");
 
@@ -519,18 +585,22 @@ class IncidentControllerTest {
                 IncidentSeverity.HIGH
         );
 
-        when(incidentService.assignIncident(17L, 2L))
-                .thenReturn(incident);
+        when(incidentService.assignIncident(
+                eq(17L),
+                eq(2L),
+                eq(1L)
+        )).thenReturn(incident);
 
         String request = """
-            {
-              "userId": 2
-            }
-            """;
+                {
+                  "userId": 2
+                }
+                """;
 
         mockMvc.perform(
                         org.springframework.test.web.servlet.request.MockMvcRequestBuilders
                                 .put("/api/incidents/17/assignee")
+                                .with(authenticateAsResponder("1"))
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(request)
                 )
@@ -538,7 +608,11 @@ class IncidentControllerTest {
                 .andExpect(jsonPath("$.title").value("API gateway failure"))
                 .andExpect(jsonPath("$.assigneeId").doesNotExist());
 
-        verify(incidentService).assignIncident(17L, 2L);
+        verify(incidentService).assignIncident(
+                17L,
+                2L,
+                1L
+        );
     }
 
     @Test
@@ -557,26 +631,27 @@ class IncidentControllerTest {
     }
 
     @Test
-    void createIncidentShouldReturn400WhenSeverityIsInvalid() throws Exception {
+    void createIncidentShouldReturn400WhenSeverityIsInvalid()
+            throws Exception {
+
         String requestBody = """
-            {
-                "title": "Payment API failure",
-                "description": "Requests are failing.",
-                "severity": "URGENT"
-            }
-            """;
+                {
+                  "title": "Payment API failure",
+                  "description": "Requests are failing.",
+                  "severity": "URGENT"
+                }
+                """;
 
         mockMvc.perform(post("/api/incidents")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(requestBody))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.status").value(400))
-                .andExpect(jsonPath("$.error").value("Malformed request"))
+                .andExpect(jsonPath("$.error")
+                        .value("Malformed request"))
                 .andExpect(jsonPath("$.details[0]")
                         .value("Request body contains invalid JSON or an unsupported field value"));
 
         verifyNoInteractions(incidentService);
     }
-
-
 }

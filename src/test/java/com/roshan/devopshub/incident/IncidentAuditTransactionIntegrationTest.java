@@ -1,4 +1,3 @@
-
 package com.roshan.devopshub.incident;
 
 import com.roshan.devopshub.audit.AuditEvent;
@@ -38,9 +37,21 @@ class IncidentAuditTransactionIntegrationTest {
     @Autowired
     private UserRepository userRepository;
 
+    private User createTestActor(String prefix) {
+        String email = prefix + "-" + java.util.UUID.randomUUID()
+                + "@example.com";
+        return userRepository.save(
+                new User(email, "Integration Test Actor", UserRole.RESPONDER)
+        );
+    }
+
     @Test
     void shouldRollbackStatusChangeWhenAuditInsertFails() {
+        User actor = createTestActor("status-rollback");
+        Long actorId = actor.getId();
+
         Incident incident = incidentService.createIncident(
+                actorId,
                 "Database connection failure",
                 "Integration test incident",
                 IncidentSeverity.HIGH
@@ -51,7 +62,8 @@ class IncidentAuditTransactionIntegrationTest {
         // Establish the initial persisted state for this test.
         incidentService.transitionStatus(
                 incidentId,
-                IncidentStatus.IN_PROGRESS
+                IncidentStatus.IN_PROGRESS,
+                actorId
         );
 
         installFailingAuditTrigger();
@@ -62,7 +74,8 @@ class IncidentAuditTransactionIntegrationTest {
                     DataAccessException.class,
                     () -> incidentService.transitionStatus(
                             incidentId,
-                            IncidentStatus.RESOLVED
+                            IncidentStatus.RESOLVED,
+                            actorId
                     )
             );
 
@@ -138,6 +151,8 @@ class IncidentAuditTransactionIntegrationTest {
 
     @Test
     void shouldRollbackIncidentCreationWhenAuditInsertFails() {
+        User actor = createTestActor("creation-rollback");
+        Long actorId = actor.getId();
         String title = "Rollback test " + java.util.UUID.randomUUID();
 
         try {
@@ -146,6 +161,7 @@ class IncidentAuditTransactionIntegrationTest {
             assertThrows(
                     DataAccessException.class,
                     () -> incidentService.createIncident(
+                            actorId,
                             title,
                             "The audit insert should fail.",
                             IncidentSeverity.HIGH
@@ -227,6 +243,8 @@ class IncidentAuditTransactionIntegrationTest {
 
     @Test
     void shouldPersistIncidentAssignmentAndAuditEvent() {
+        User actor = createTestActor("assignment-actor");
+        Long actorId = actor.getId();
         String email = "assignment-" + java.util.UUID.randomUUID()
                 + "@example.com";
 
@@ -235,12 +253,14 @@ class IncidentAuditTransactionIntegrationTest {
         );
 
         Incident incident = incidentService.createIncident(
+                actorId,
                 "Assignment integration test",
                 "Verify assignment persistence.",
                 IncidentSeverity.HIGH
         );
 
-        incidentService.assignIncident(incident.getId(), user.getId());
+        incidentService.assignIncident(
+                incident.getId(), user.getId(), actorId);
 
         Incident persistedIncident = incidentRepository
                 .findById(incident.getId())
@@ -262,6 +282,8 @@ class IncidentAuditTransactionIntegrationTest {
 
     @Test
     void shouldRollbackIncidentReassignmentWhenAuditInsertFails() {
+        User actor = createTestActor("reassignment-actor");
+        Long actorId = actor.getId();
         String firstEmail = "first-" + java.util.UUID.randomUUID()
                 + "@example.com";
         String secondEmail = "second-" + java.util.UUID.randomUUID()
@@ -276,6 +298,7 @@ class IncidentAuditTransactionIntegrationTest {
         );
 
         Incident incident = incidentService.createIncident(
+                actorId,
                 "Assignment rollback integration test",
                 "Verify reassignment rollback.",
                 IncidentSeverity.HIGH
@@ -284,7 +307,7 @@ class IncidentAuditTransactionIntegrationTest {
         Long incidentId = incident.getId();
 
         // Establish the initial persisted assignee.
-        incidentService.assignIncident(incidentId, firstUser.getId());
+        incidentService.assignIncident(incidentId, firstUser.getId(), actorId);
 
         installFailingAssignmentAuditTrigger();
 
@@ -293,7 +316,8 @@ class IncidentAuditTransactionIntegrationTest {
                     DataAccessException.class,
                     () -> incidentService.assignIncident(
                             incidentId,
-                            secondUser.getId()
+                            secondUser.getId(),
+                            actorId
                     )
             );
 

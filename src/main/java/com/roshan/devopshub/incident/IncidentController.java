@@ -16,7 +16,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import jakarta.validation.Valid;
-
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import java.util.List;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PutMapping;
@@ -37,9 +37,11 @@ public class IncidentController {
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public IncidentResponse createIncident(
+            @AuthenticationPrincipal String actorId,
             @Valid @RequestBody CreateIncidentRequest request
     ) {
         Incident incident = incidentService.createIncident(
+                Long.parseLong(actorId),
                 request.title(),
                 request.description(),
                 request.severity()
@@ -57,11 +59,13 @@ public class IncidentController {
     @PutMapping("/{id}/assignee")
     public IncidentResponse assignIncident(
             @PathVariable Long id,
+            @AuthenticationPrincipal String actorId,
             @Valid @RequestBody AssignIncidentRequest request
     ) {
         Incident incident = incidentService.assignIncident(
                 id,
-                request.userId()
+                request.userId(),
+                Long.parseLong(actorId)
         );
 
         return IncidentResponse.from(incident);
@@ -102,16 +106,17 @@ public class IncidentController {
     @PostMapping("/{id}/transitions")
     public IncidentResponse transitionIncident(
             @PathVariable Long id,
-            @Valid @RequestBody TransitionIncidentRequest request) {
-
+            @AuthenticationPrincipal String actorId,
+            @Valid @RequestBody TransitionIncidentRequest request
+    ) {
         Incident incident = incidentService.transitionStatus(
                 id,
-                request.status()
+                request.status(),
+                Long.parseLong(actorId)
         );
 
         return IncidentResponse.from(incident);
     }
-
 
     @PostMapping("/{id}/updates")
     public ResponseEntity<IncidentUpdateResponse> addIncidentUpdate(

@@ -203,7 +203,7 @@ class SecurityConfigTest {
 
         Incident incident = new Incident(title, description, severity);
 
-        when(incidentService.createIncident(title, description, severity))
+        when(incidentService.createIncident(11L, title, description, severity))
                 .thenReturn(incident);
 
         mockMvc.perform(post("/api/incidents")
@@ -218,7 +218,7 @@ class SecurityConfigTest {
                                 """))
                 .andExpect(status().isCreated());
 
-        verify(incidentService).createIncident(title, description, severity);
+        verify(incidentService).createIncident(11L, title, description, severity);
     }
 
     @Test

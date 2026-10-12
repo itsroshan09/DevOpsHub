@@ -2,6 +2,7 @@
 package com.roshan.devopshub.audit;
 
 import com.roshan.devopshub.incident.Incident;
+import com.roshan.devopshub.user.User;
 import jakarta.persistence.*;
 
 import java.time.Instant;
@@ -35,8 +36,37 @@ public class AuditEvent {
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "actor_id")
+    private User actor;
+
     protected AuditEvent() {
         // Required by JPA.
+    }
+
+    public AuditEvent(
+            Incident incident,
+            User actor,
+            String action,
+            String details
+    ) {
+        if (incident == null) {
+            throw new IllegalArgumentException("Incident is required");
+        }
+        if (action == null || action.isBlank() || action.length() > 50) {
+            throw new IllegalArgumentException(
+                    "Action must contain between 1 and 50 characters"
+            );
+        }
+        if (details == null || details.isBlank()) {
+            throw new IllegalArgumentException("Details are required");
+        }
+
+        this.incident = incident;
+        this.actor = actor;
+        this.action = action;
+        this.details = details;
     }
 
     public AuditEvent(Incident incident, String action, String details) {
@@ -82,5 +112,9 @@ public class AuditEvent {
 
     public Instant getCreatedAt() {
         return createdAt;
+    }
+
+    public User getActor() {
+        return actor;
     }
 }

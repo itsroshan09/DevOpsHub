@@ -1,17 +1,18 @@
-package com.roshan.devopshub.incident;
 
+package com.roshan.devopshub.incident;
 
 import com.roshan.devopshub.audit.AuditEvent;
 import com.roshan.devopshub.audit.AuditEventRepository;
-
+import com.roshan.devopshub.user.User;
+import com.roshan.devopshub.user.UserNotFoundException;
+import com.roshan.devopshub.user.UserRepository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.ArrayList;
 import java.util.Comparator;
-import com.roshan.devopshub.user.User;
-import com.roshan.devopshub.user.UserRepository;
-import com.roshan.devopshub.user.UserNotFoundException;
 import java.util.List;
 
 @Service
@@ -25,8 +26,9 @@ public class IncidentService {
     public IncidentService(
             IncidentRepository incidentRepository,
             IncidentUpdateRepository incidentUpdateRepository,
-            AuditEventRepository auditEventRepository, UserRepository userRepository) {
-
+            AuditEventRepository auditEventRepository,
+            UserRepository userRepository
+    ) {
         this.incidentRepository = incidentRepository;
         this.incidentUpdateRepository = incidentUpdateRepository;
         this.auditEventRepository = auditEventRepository;
@@ -35,16 +37,19 @@ public class IncidentService {
 
     @Transactional
     public Incident createIncident(
+            Long actorId,
             String title,
             String description,
-            IncidentSeverity severity) {
+            IncidentSeverity severity
+    ) {
+        User actor = findUser(actorId);
 
         Incident incident = new Incident(title, description, severity);
-
         Incident savedIncident = incidentRepository.save(incident);
 
         AuditEvent auditEvent = new AuditEvent(
                 savedIncident,
+                actor,
                 "INCIDENT_CREATED",
                 "Incident created"
         );
@@ -69,13 +74,17 @@ public class IncidentService {
     public Page<Incident> getIncidents(
             IncidentStatus status,
             IncidentSeverity severity,
-            Pageable pageable) {
-
+            Pageable pageable
+    ) {
         return incidentRepository.findByFilters(status, severity, pageable);
     }
 
     @Transactional
-    public Incident transitionStatus(Long id, IncidentStatus newStatus) {
+    public Incident transitionStatus(
+            Long id,
+            IncidentStatus newStatus,
+            Long actorId
+    ) {
         Incident incident = incidentRepository.findById(id)
                 .orElseThrow(() -> new IncidentNotFoundException(id));
 
@@ -94,12 +103,14 @@ public class IncidentService {
             );
         }
 
-        incident.transitionTo(newStatus);
+        User actor = findUser(actorId);
 
+        incident.transitionTo(newStatus);
         Incident savedIncident = incidentRepository.save(incident);
 
         AuditEvent auditEvent = new AuditEvent(
                 savedIncident,
+                actor,
                 "STATUS_CHANGED",
                 currentStatus + " -> " + newStatus
         );
@@ -108,7 +119,6 @@ public class IncidentService {
 
         return savedIncident;
     }
-
 
     @Transactional
     public IncidentUpdate addUpdate(Long incidentId, String message) {
@@ -119,7 +129,6 @@ public class IncidentService {
 
         return incidentUpdateRepository.save(update);
     }
-
 
     @Transactional(readOnly = true)
     public List<IncidentUpdate> getIncidentUpdates(Long incidentId) {
@@ -134,12 +143,10 @@ public class IncidentService {
     public List<IncidentHistoryItemResponse> getIncidentHistory(
             Long incidentId
     ) {
-        // Ensure the incident exists before retrieving its history.
         incidentRepository.findById(incidentId)
                 .orElseThrow(() -> new IncidentNotFoundException(incidentId));
 
-        List<IncidentHistoryItemResponse> history =
-                new java.util.ArrayList<>();
+        List<IncidentHistoryItemResponse> history = new ArrayList<>();
 
         incidentUpdateRepository
                 .findByIncidentIdOrderByCreatedAtAsc(incidentId)
@@ -173,26 +180,30 @@ public class IncidentService {
         return history;
     }
 
-
     @Transactional
-    public Incident assignIncident(Long incidentId, Long userId) {
+    public Incident assignIncident(
+            Long incidentId,
+            Long userId,
+            Long actorId
+    ) {
         Incident incident = incidentRepository.findById(incidentId)
                 .orElseThrow(() -> new IncidentNotFoundException(incidentId));
 
-        User newAssignee = userRepository.findById(userId)
-                .orElseThrow(() -> new UserNotFoundException(userId));
+        User newAssignee = findUser(userId);
+        User actor = findUser(actorId);
 
         User previousAssignee = incident.getAssignee();
+
         String previousAssigneeName = previousAssignee == null
                 ? "Unassigned"
                 : previousAssignee.getEmail();
 
         incident.assignTo(newAssignee);
-
         Incident savedIncident = incidentRepository.save(incident);
 
         AuditEvent auditEvent = new AuditEvent(
                 savedIncident,
+                actor,
                 "INCIDENT_ASSIGNED",
                 previousAssigneeName + " -> " + newAssignee.getEmail()
         );
@@ -202,6 +213,8 @@ public class IncidentService {
         return savedIncident;
     }
 
-
-
+    private User findUser(Long userId) {
+        return userRepository.findById(userId)
+                .orElseThrow(() -> new UserNotFoundException(userId));
+    }
 }

@@ -1,44 +1,29 @@
-
 package com.roshan.devopshub.incident;
 
 import com.roshan.devopshub.audit.AuditEvent;
 import com.roshan.devopshub.audit.AuditEventRepository;
 import com.roshan.devopshub.user.User;
 import com.roshan.devopshub.user.UserNotFoundException;
+import com.roshan.devopshub.user.UserRepository;
 import com.roshan.devopshub.user.UserRole;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertSame;
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
-import com.roshan.devopshub.user.UserRepository;
-import static org.mockito.Mockito.mock;
-import org.mockito.ArgumentCaptor;
-
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import java.time.Instant;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.mockito.Mockito.inOrder;
-import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.Mockito.never;
-
-
+import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class IncidentServiceTest {
@@ -52,9 +37,10 @@ class IncidentServiceTest {
     @Mock
     private AuditEventRepository auditEventRepository;
 
-    private IncidentService incidentService;
     @Mock
     private UserRepository userRepository;
+
+    private IncidentService incidentService;
 
     @BeforeEach
     void setUp() {
@@ -73,11 +59,13 @@ class IncidentServiceTest {
                 "Checkout requests are failing intermittently.",
                 IncidentSeverity.HIGH
         );
+        User actor = createTestUser();
 
-        when(incidentRepository.save(any(Incident.class)))
-                .thenReturn(incident);
+        when(userRepository.findById(1L)).thenReturn(Optional.of(actor));
+        when(incidentRepository.save(any(Incident.class))).thenReturn(incident);
 
         Incident result = incidentService.createIncident(
+                1L,
                 "API gateway returning 500 errors",
                 "Checkout requests are failing intermittently.",
                 IncidentSeverity.HIGH
@@ -93,11 +81,9 @@ class IncidentServiceTest {
         order.verify(auditEventRepository).save(any(AuditEvent.class));
     }
 
-
     @Test
     void getIncidentByIdShouldThrowExceptionWhenIncidentDoesNotExist() {
-        when(incidentRepository.findWithAssigneeById(999L))
-                .thenReturn(Optional.empty());
+        when(incidentRepository.findWithAssigneeById(999L)).thenReturn(Optional.empty());
 
         assertThrows(
                 IncidentNotFoundException.class,
@@ -110,7 +96,6 @@ class IncidentServiceTest {
     @Test
     void getIncidentsShouldRequestPageFromRepository() {
         PageRequest pageable = PageRequest.of(0, 10);
-
         Page<Incident> expectedPage = new PageImpl<>(
                 List.of(new Incident(
                         "API gateway returning 500 errors",
@@ -121,15 +106,13 @@ class IncidentServiceTest {
                 1
         );
 
-        when(incidentRepository.findAll(pageable))
-                .thenReturn(expectedPage);
+        when(incidentRepository.findAll(pageable)).thenReturn(expectedPage);
 
         Page<Incident> result = incidentService.getIncidents(pageable);
 
         assertSame(expectedPage, result);
         verify(incidentRepository).findAll(pageable);
     }
-
 
     @Test
     void transitionStatusShouldAllowOpenToInProgress() {
@@ -138,33 +121,29 @@ class IncidentServiceTest {
                 "Checkout requests are failing.",
                 IncidentSeverity.HIGH
         );
+        User actor = createTestUser();
 
-        when(incidentRepository.findById(17L))
-                .thenReturn(Optional.of(incident));
-
-        when(incidentRepository.save(incident))
-                .thenReturn(incident);
+        when(incidentRepository.findById(17L)).thenReturn(Optional.of(incident));
+        when(userRepository.findById(1L)).thenReturn(Optional.of(actor));
+        when(incidentRepository.save(incident)).thenReturn(incident);
 
         Incident result = incidentService.transitionStatus(
                 17L,
-                IncidentStatus.IN_PROGRESS
+                IncidentStatus.IN_PROGRESS,
+                1L
         );
 
         assertEquals(IncidentStatus.IN_PROGRESS, result.getStatus());
-
         verify(incidentRepository).save(incident);
 
-        ArgumentCaptor<AuditEvent> captor =
-                ArgumentCaptor.forClass(AuditEvent.class);
-
+        ArgumentCaptor<AuditEvent> captor = ArgumentCaptor.forClass(AuditEvent.class);
         verify(auditEventRepository).save(captor.capture());
 
         AuditEvent event = captor.getValue();
-
         assertEquals("STATUS_CHANGED", event.getAction());
         assertEquals("OPEN -> IN_PROGRESS", event.getDetails());
+        assertSame(actor, event.getActor());
     }
-
 
     @Test
     void transitionStatusShouldAllowInProgressToResolved() {
@@ -174,19 +153,19 @@ class IncidentServiceTest {
                 IncidentSeverity.HIGH
         );
         incident.transitionTo(IncidentStatus.IN_PROGRESS);
+        User actor = createTestUser();
 
-        when(incidentRepository.findById(17L))
-                .thenReturn(Optional.of(incident));
-        when(incidentRepository.save(incident))
-                .thenReturn(incident);
+        when(incidentRepository.findById(17L)).thenReturn(Optional.of(incident));
+        when(userRepository.findById(1L)).thenReturn(Optional.of(actor));
+        when(incidentRepository.save(incident)).thenReturn(incident);
 
         Incident result = incidentService.transitionStatus(
                 17L,
-                IncidentStatus.RESOLVED
+                IncidentStatus.RESOLVED,
+                1L
         );
 
         assertEquals(IncidentStatus.RESOLVED, result.getStatus());
-
         verify(incidentRepository).save(incident);
         verify(auditEventRepository).save(any(AuditEvent.class));
     }
@@ -198,43 +177,38 @@ class IncidentServiceTest {
                 "Checkout requests are failing.",
                 IncidentSeverity.HIGH
         );
-
-        when(incidentRepository.findById(17L))
-                .thenReturn(Optional.of(incident));
+        when(incidentRepository.findById(17L)).thenReturn(Optional.of(incident));
 
         assertThrows(
                 IllegalArgumentException.class,
                 () -> incidentService.transitionStatus(
                         17L,
-                        IncidentStatus.RESOLVED
+                        IncidentStatus.RESOLVED,
+                        1L
                 )
         );
 
         assertEquals(IncidentStatus.OPEN, incident.getStatus());
-
-        verify(incidentRepository, never())
-                .save(any(Incident.class));
-        verify(auditEventRepository, never())
-                .save(any(AuditEvent.class));
+        verify(incidentRepository, never()).save(any(Incident.class));
+        verify(auditEventRepository, never()).save(any(AuditEvent.class));
     }
 
     @Test
     void transitionStatusShouldThrowWhenIncidentDoesNotExist() {
-        when(incidentRepository.findById(999L))
-                .thenReturn(Optional.empty());
+        when(incidentRepository.findById(999L)).thenReturn(Optional.empty());
 
         assertThrows(
                 IncidentNotFoundException.class,
                 () -> incidentService.transitionStatus(
                         999L,
-                        IncidentStatus.IN_PROGRESS
+                        IncidentStatus.IN_PROGRESS,
+                        1L
                 )
         );
 
         verify(incidentRepository).findById(999L);
         verify(incidentRepository, never()).save(any(Incident.class));
-        verify(auditEventRepository, never())
-                .save(any(AuditEvent.class));
+        verify(auditEventRepository, never()).save(any(AuditEvent.class));
     }
 
     @Test
@@ -244,16 +218,13 @@ class IncidentServiceTest {
                 "Checkout requests are failing.",
                 IncidentSeverity.HIGH
         );
-
         IncidentUpdate update = new IncidentUpdate(
                 incident,
                 "Database connection pool exhaustion identified."
         );
 
-        when(incidentRepository.findById(17L))
-                .thenReturn(Optional.of(incident));
-        when(incidentUpdateRepository.save(any(IncidentUpdate.class)))
-                .thenReturn(update);
+        when(incidentRepository.findById(17L)).thenReturn(Optional.of(incident));
+        when(incidentUpdateRepository.save(any(IncidentUpdate.class))).thenReturn(update);
 
         IncidentUpdate result = incidentService.addUpdate(
                 17L,
@@ -263,10 +234,7 @@ class IncidentServiceTest {
         assertNotNull(result);
         assertSame(update, result);
         assertEquals(incident, result.getIncident());
-        assertEquals(
-                "Database connection pool exhaustion identified.",
-                result.getMessage()
-        );
+        assertEquals("Database connection pool exhaustion identified.", result.getMessage());
 
         verify(incidentRepository).findById(17L);
         verify(incidentUpdateRepository).save(any(IncidentUpdate.class));
@@ -274,20 +242,15 @@ class IncidentServiceTest {
 
     @Test
     void addUpdateShouldThrowWhenIncidentDoesNotExist() {
-        when(incidentRepository.findById(999L))
-                .thenReturn(Optional.empty());
+        when(incidentRepository.findById(999L)).thenReturn(Optional.empty());
 
         assertThrows(
                 IncidentNotFoundException.class,
-                () -> incidentService.addUpdate(
-                        999L,
-                        "Investigation update"
-                )
+                () -> incidentService.addUpdate(999L, "Investigation update")
         );
 
         verify(incidentRepository).findById(999L);
-        verify(incidentUpdateRepository, never())
-                .save(any(IncidentUpdate.class));
+        verify(incidentUpdateRepository, never()).save(any(IncidentUpdate.class));
     }
 
     @Test
@@ -297,42 +260,32 @@ class IncidentServiceTest {
                 "Checkout requests are failing.",
                 IncidentSeverity.HIGH
         );
-
         IncidentUpdate firstUpdate = new IncidentUpdate(
                 incident,
                 "Investigating database connections."
         );
-
         IncidentUpdate secondUpdate = new IncidentUpdate(
                 incident,
                 "Connection pool exhaustion confirmed."
         );
+        List<IncidentUpdate> expectedUpdates = List.of(firstUpdate, secondUpdate);
 
-        List<IncidentUpdate> expectedUpdates =
-                List.of(firstUpdate, secondUpdate);
-
-        when(incidentRepository.findById(17L))
-                .thenReturn(Optional.of(incident));
-        when(incidentUpdateRepository
-                .findByIncidentIdOrderByCreatedAtAsc(17L))
+        when(incidentRepository.findById(17L)).thenReturn(Optional.of(incident));
+        when(incidentUpdateRepository.findByIncidentIdOrderByCreatedAtAsc(17L))
                 .thenReturn(expectedUpdates);
 
-        List<IncidentUpdate> result =
-                incidentService.getIncidentUpdates(17L);
+        List<IncidentUpdate> result = incidentService.getIncidentUpdates(17L);
 
         assertEquals(2, result.size());
         assertSame(firstUpdate, result.get(0));
         assertSame(secondUpdate, result.get(1));
-
         verify(incidentRepository).findById(17L);
-        verify(incidentUpdateRepository)
-                .findByIncidentIdOrderByCreatedAtAsc(17L);
+        verify(incidentUpdateRepository).findByIncidentIdOrderByCreatedAtAsc(17L);
     }
 
     @Test
     void getIncidentUpdatesShouldThrowWhenIncidentDoesNotExist() {
-        when(incidentRepository.findById(999L))
-                .thenReturn(Optional.empty());
+        when(incidentRepository.findById(999L)).thenReturn(Optional.empty());
 
         assertThrows(
                 IncidentNotFoundException.class,
@@ -340,10 +293,8 @@ class IncidentServiceTest {
         );
 
         verify(incidentRepository).findById(999L);
-        verify(incidentUpdateRepository, never())
-                .findByIncidentIdOrderByCreatedAtAsc(999L);
+        verify(incidentUpdateRepository, never()).findByIncidentIdOrderByCreatedAtAsc(999L);
     }
-
 
     @Test
     void getIncidentHistoryShouldCombineAndSortEventsChronologically() {
@@ -352,7 +303,6 @@ class IncidentServiceTest {
                 "Checkout requests are failing.",
                 IncidentSeverity.HIGH
         );
-
         Instant earlier = Instant.parse("2026-10-11T10:00:00Z");
         Instant later = Instant.parse("2026-10-11T10:05:00Z");
 
@@ -360,48 +310,34 @@ class IncidentServiceTest {
                 incident,
                 "Investigating database connections."
         );
-
         AuditEvent auditEvent = new AuditEvent(
                 incident,
                 "STATUS_CHANGED",
                 "OPEN -> IN_PROGRESS"
         );
 
-        // Set timestamps deterministically for this unit test.
         setCreatedAt(update, later);
         setCreatedAt(auditEvent, earlier);
 
-        when(incidentRepository.findById(17L))
-                .thenReturn(Optional.of(incident));
-
-        when(incidentUpdateRepository
-                .findByIncidentIdOrderByCreatedAtAsc(17L))
+        when(incidentRepository.findById(17L)).thenReturn(Optional.of(incident));
+        when(incidentUpdateRepository.findByIncidentIdOrderByCreatedAtAsc(17L))
                 .thenReturn(List.of(update));
-
-        when(auditEventRepository
-                .findByIncidentIdOrderByCreatedAtAscIdAsc(17L))
+        when(auditEventRepository.findByIncidentIdOrderByCreatedAtAscIdAsc(17L))
                 .thenReturn(List.of(auditEvent));
 
-        List<IncidentHistoryItemResponse> history =
-                incidentService.getIncidentHistory(17L);
+        List<IncidentHistoryItemResponse> history = incidentService.getIncidentHistory(17L);
 
         assertEquals(2, history.size());
         assertEquals("STATUS_CHANGED", history.get(0).type());
         assertEquals("OPEN -> IN_PROGRESS", history.get(0).details());
         assertEquals(earlier, history.get(0).createdAt());
-
         assertEquals("INVESTIGATION_UPDATE", history.get(1).type());
-        assertEquals(
-                "Investigating database connections.",
-                history.get(1).details()
-        );
+        assertEquals("Investigating database connections.", history.get(1).details());
         assertEquals(later, history.get(1).createdAt());
 
         verify(incidentRepository).findById(17L);
-        verify(incidentUpdateRepository)
-                .findByIncidentIdOrderByCreatedAtAsc(17L);
-        verify(auditEventRepository)
-                .findByIncidentIdOrderByCreatedAtAscIdAsc(17L);
+        verify(incidentUpdateRepository).findByIncidentIdOrderByCreatedAtAsc(17L);
+        verify(auditEventRepository).findByIncidentIdOrderByCreatedAtAscIdAsc(17L);
     }
 
     private void setCreatedAt(Object entity, Instant timestamp) {
@@ -410,16 +346,13 @@ class IncidentServiceTest {
             field.setAccessible(true);
             field.set(entity, timestamp);
         } catch (ReflectiveOperationException exception) {
-            throw new AssertionError(
-                    "Could not set test timestamp", exception
-            );
+            throw new AssertionError("Could not set test timestamp", exception);
         }
     }
 
     @Test
     void getIncidentHistoryShouldThrowWhenIncidentDoesNotExist() {
-        when(incidentRepository.findById(999L))
-                .thenReturn(Optional.empty());
+        when(incidentRepository.findById(999L)).thenReturn(Optional.empty());
 
         assertThrows(
                 IncidentNotFoundException.class,
@@ -427,10 +360,8 @@ class IncidentServiceTest {
         );
 
         verify(incidentRepository).findById(999L);
-        verify(incidentUpdateRepository, never())
-                .findByIncidentIdOrderByCreatedAtAsc(999L);
-        verify(auditEventRepository, never())
-                .findByIncidentIdOrderByCreatedAtAscIdAsc(999L);
+        verify(incidentUpdateRepository, never()).findByIncidentIdOrderByCreatedAtAsc(999L);
+        verify(auditEventRepository, never()).findByIncidentIdOrderByCreatedAtAscIdAsc(999L);
     }
 
     @Test
@@ -440,26 +371,26 @@ class IncidentServiceTest {
                 "Requests are failing.",
                 IncidentSeverity.HIGH
         );
+        User actor = createTestUser();
 
-        when(incidentRepository.save(any(Incident.class)))
-                .thenReturn(incident);
+        when(userRepository.findById(1L)).thenReturn(Optional.of(actor));
+        when(incidentRepository.save(any(Incident.class))).thenReturn(incident);
 
         incidentService.createIncident(
+                1L,
                 "API gateway failure",
                 "Requests are failing.",
                 IncidentSeverity.HIGH
         );
 
-        ArgumentCaptor<AuditEvent> captor =
-                ArgumentCaptor.forClass(AuditEvent.class);
-
+        ArgumentCaptor<AuditEvent> captor = ArgumentCaptor.forClass(AuditEvent.class);
         verify(auditEventRepository).save(captor.capture());
 
         AuditEvent event = captor.getValue();
-
         assertSame(incident, event.getIncident());
         assertEquals("INCIDENT_CREATED", event.getAction());
         assertEquals("Incident created", event.getDetails());
+        assertSame(actor, event.getActor());
     }
 
     @Test
@@ -469,36 +400,31 @@ class IncidentServiceTest {
                 "Requests are failing.",
                 IncidentSeverity.HIGH
         );
-
-        User user = new User(
+        User assignee = new User(
                 "responder@example.com",
                 "Test Responder",
                 UserRole.RESPONDER
         );
+        User actor = createTestUser();
 
-        when(incidentRepository.findById(1L))
-                .thenReturn(Optional.of(incident));
-        when(userRepository.findById(2L))
-                .thenReturn(Optional.of(user));
+        when(incidentRepository.findById(1L)).thenReturn(Optional.of(incident));
+        when(userRepository.findById(2L)).thenReturn(Optional.of(assignee));
+        when(userRepository.findById(1L)).thenReturn(Optional.of(actor));
         when(incidentRepository.save(any(Incident.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
-        Incident result = incidentService.assignIncident(1L, 2L);
+        Incident result = incidentService.assignIncident(1L, 2L, 1L);
 
-        assertSame(user, result.getAssignee());
+        assertSame(assignee, result.getAssignee());
 
-        ArgumentCaptor<AuditEvent> captor =
-                ArgumentCaptor.forClass(AuditEvent.class);
-
+        ArgumentCaptor<AuditEvent> captor = ArgumentCaptor.forClass(AuditEvent.class);
         verify(auditEventRepository).save(captor.capture());
 
         AuditEvent event = captor.getValue();
         assertSame(incident, event.getIncident());
         assertEquals("INCIDENT_ASSIGNED", event.getAction());
-        assertEquals(
-                "Unassigned -> responder@example.com",
-                event.getDetails()
-        );
+        assertEquals("Unassigned -> responder@example.com", event.getDetails());
+        assertSame(actor, event.getActor());
     }
 
     @Test
@@ -509,12 +435,11 @@ class IncidentServiceTest {
                         "Requests are failing.",
                         IncidentSeverity.HIGH
                 )));
-        when(userRepository.findById(2L))
-                .thenReturn(Optional.empty());
+        when(userRepository.findById(2L)).thenReturn(Optional.empty());
 
         assertThrows(
                 UserNotFoundException.class,
-                () -> incidentService.assignIncident(1L, 2L)
+                () -> incidentService.assignIncident(1L, 2L, 1L)
         );
 
         verify(incidentRepository, never()).save(any(Incident.class));
@@ -523,15 +448,22 @@ class IncidentServiceTest {
 
     @Test
     void assignIncidentShouldThrowWhenIncidentDoesNotExist() {
-        when(incidentRepository.findById(1L))
-                .thenReturn(Optional.empty());
+        when(incidentRepository.findById(1L)).thenReturn(Optional.empty());
 
         assertThrows(
                 IncidentNotFoundException.class,
-                () -> incidentService.assignIncident(1L, 2L)
+                () -> incidentService.assignIncident(1L, 2L, 1L)
         );
 
         verify(userRepository, never()).findById(anyLong());
         verify(auditEventRepository, never()).save(any(AuditEvent.class));
+    }
+
+    private User createTestUser() {
+        return new User(
+                "actor@example.com",
+                "Test Actor",
+                UserRole.RESPONDER
+        );
     }
 }

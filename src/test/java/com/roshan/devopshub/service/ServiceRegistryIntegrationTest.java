@@ -82,6 +82,7 @@ class ServiceRegistryIntegrationTest {
                 DataIntegrityViolationException.class,
                 () -> serviceRepository.saveAndFlush(
                         new Service(name, "Duplicate service")
+
                 )
         );
 
