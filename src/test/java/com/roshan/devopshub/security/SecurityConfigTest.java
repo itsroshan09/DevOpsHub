@@ -38,6 +38,8 @@ import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import com.roshan.devopshub.service.ServiceManagementService;
+import io.jsonwebtoken.ExpiredJwtException;
+import io.jsonwebtoken.Jwts;
 
 
 @SpringBootTest
@@ -439,6 +441,25 @@ class SecurityConfigTest {
     }
 
 
+    @Test
+    void protectedEndpointShouldReturn401ForExpiredToken()
+            throws Exception {
 
+        String token = "expired-test-token";
+
+        when(jwtService.parseAccessToken(token))
+                .thenThrow(new ExpiredJwtException(
+                        null,
+                        Jwts.claims().build(),
+                        "Token has expired"
+                ));
+
+        mockMvc.perform(get("/api/incidents")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isUnauthorized());
+
+        verify(jwtService).parseAccessToken(token);
+        verifyNoInteractions(incidentService);
+    }
 
 }
