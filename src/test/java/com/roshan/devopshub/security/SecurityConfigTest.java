@@ -7,6 +7,7 @@ import com.roshan.devopshub.auth.LoginResponse;
 import com.roshan.devopshub.incident.Incident;
 import com.roshan.devopshub.incident.IncidentService;
 import com.roshan.devopshub.incident.IncidentSeverity;
+import com.roshan.devopshub.service.ServiceResponse;
 import com.roshan.devopshub.user.User;
 import com.roshan.devopshub.user.UserRepository;
 import com.roshan.devopshub.user.UserRole;
@@ -462,4 +463,30 @@ class SecurityConfigTest {
         verifyNoInteractions(incidentService);
     }
 
+    @Test
+    void viewerShouldBeAllowedToGetServiceById() throws Exception {
+        mockAuthenticatedUser(
+                24L, UserRole.VIEWER, "viewer-get-service-token"
+        );
+
+        ServiceResponse service = new ServiceResponse(
+                1L,
+                "Payments",
+                "Payment processing",
+                java.time.Instant.parse("2026-01-01T10:00:00Z"),
+                java.time.Instant.parse("2026-01-01T10:00:00Z")
+        );
+
+        when(serviceManagementService.getServiceById(1L))
+                .thenReturn(service);
+
+        mockMvc.perform(get("/api/services/1")
+                        .header(
+                                "Authorization",
+                                "Bearer viewer-get-service-token"
+                        ))
+                .andExpect(status().isOk());
+
+        verify(serviceManagementService).getServiceById(1L);
+    }
 }
