@@ -491,4 +491,64 @@ class IncidentServiceTest {
                 UserRole.RESPONDER
         );
     }
+    @Test
+    void transitionStatusShouldAllowResolvedToInProgress() {
+        Incident incident = new Incident(
+                "Payment API failure",
+                "Checkout requests are failing.",
+                IncidentSeverity.HIGH
+        );
+        incident.transitionTo(IncidentStatus.IN_PROGRESS);
+        incident.transitionTo(IncidentStatus.RESOLVED);
+
+        User actor = createTestUser();
+
+        when(incidentRepository.findById(17L)).thenReturn(Optional.of(incident));
+        when(userRepository.findById(1L)).thenReturn(Optional.of(actor));
+        when(incidentRepository.save(incident)).thenReturn(incident);
+
+        Incident result = incidentService.transitionStatus(
+                17L,
+                IncidentStatus.IN_PROGRESS,
+                1L
+        );
+
+        assertEquals(IncidentStatus.IN_PROGRESS, result.getStatus());
+        verify(incidentRepository).save(incident);
+
+        ArgumentCaptor<AuditEvent> captor =
+                ArgumentCaptor.forClass(AuditEvent.class);
+        verify(auditEventRepository).save(captor.capture());
+
+        AuditEvent event = captor.getValue();
+        assertEquals("STATUS_CHANGED", event.getAction());
+        assertEquals("RESOLVED -> IN_PROGRESS", event.getDetails());
+        assertSame(actor, event.getActor());
+    }
+
+    @Test
+    void transitionStatusShouldRejectResolvedToOpen() {
+        Incident incident = new Incident(
+                "Payment API failure",
+                "Checkout requests are failing.",
+                IncidentSeverity.HIGH
+        );
+        incident.transitionTo(IncidentStatus.IN_PROGRESS);
+        incident.transitionTo(IncidentStatus.RESOLVED);
+
+        when(incidentRepository.findById(17L)).thenReturn(Optional.of(incident));
+
+        assertThrows(
+                IllegalArgumentException.class,
+                () -> incidentService.transitionStatus(
+                        17L,
+                        IncidentStatus.OPEN,
+                        1L
+                )
+        );
+
+        assertEquals(IncidentStatus.RESOLVED, incident.getStatus());
+        verify(incidentRepository, never()).save(any(Incident.class));
+        verify(auditEventRepository, never()).save(any(AuditEvent.class));
+    }
 }

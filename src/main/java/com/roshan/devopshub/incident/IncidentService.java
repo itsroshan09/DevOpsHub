@@ -94,7 +94,9 @@ public class IncidentService {
                 (currentStatus == IncidentStatus.OPEN
                         && newStatus == IncidentStatus.IN_PROGRESS)
                         || (currentStatus == IncidentStatus.IN_PROGRESS
-                        && newStatus == IncidentStatus.RESOLVED);
+                        && newStatus == IncidentStatus.RESOLVED)
+                        || (currentStatus == IncidentStatus.RESOLVED
+                        && newStatus == IncidentStatus.IN_PROGRESS);
 
         if (!isValidTransition) {
             throw new IllegalArgumentException(
