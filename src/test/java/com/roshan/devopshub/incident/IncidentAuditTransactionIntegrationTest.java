@@ -496,5 +496,96 @@ class IncidentAuditTransactionIntegrationTest {
                 devopshub_test_fail_assignment_audit_insert()
             """);
     }
+    @Test
+    void shouldRollbackSeverityChangeWhenAuditInsertFails() {
+        User actor = createTestActor("severity-rollback");
+        Long actorId = actor.getId();
 
+        Incident incident = incidentService.createIncident(
+                actorId,
+                "Severity rollback integration test",
+                "Verify severity and audit rollback.",
+                IncidentSeverity.LOW
+        );
+
+        Long incidentId = incident.getId();
+
+        try {
+            installFailingSeverityAuditTrigger();
+
+            assertThrows(
+                    DataAccessException.class,
+                    () -> incidentService.changeSeverity(
+                            incidentId,
+                            IncidentSeverity.CRITICAL,
+                            actorId
+                    )
+            );
+
+            // Reload from PostgreSQL after the failed service transaction.
+            Incident persistedIncident = incidentRepository
+                    .findById(incidentId)
+                    .orElseThrow();
+
+            assertEquals(
+                    IncidentSeverity.LOW,
+                    persistedIncident.getSeverity(),
+                    "The severity change should have rolled back"
+            );
+
+            List<AuditEvent> events = auditEventRepository
+                    .findByIncidentIdOrderByCreatedAtAscIdAsc(incidentId);
+
+            assertTrue(
+                    events.stream().noneMatch(event ->
+                            "SEVERITY_CHANGED".equals(event.getAction())
+                                    && "LOW -> CRITICAL".equals(
+                                    event.getDetails()
+                            )
+                    ),
+                    "The failed severity change must not have an audit event"
+            );
+        } finally {
+            removeFailingSeverityAuditTrigger();
+        }
+    }
+    private void installFailingSeverityAuditTrigger() {
+        jdbcTemplate.execute("""
+            CREATE OR REPLACE FUNCTION
+                devopshub_test_fail_severity_audit_insert()
+            RETURNS trigger AS $$
+            BEGIN
+                IF NEW.action = 'SEVERITY_CHANGED'
+                   AND NEW.details = 'LOW -> CRITICAL' THEN
+                    RAISE EXCEPTION
+                        'Intentional severity audit failure for integration test';
+                END IF;
+
+                RETURN NEW;
+            END;
+            $$ LANGUAGE plpgsql
+            """);
+
+        jdbcTemplate.execute("""
+            CREATE TRIGGER
+                devopshub_test_fail_severity_audit_trigger
+            BEFORE INSERT ON audit_events
+            FOR EACH ROW
+            EXECUTE FUNCTION
+                devopshub_test_fail_severity_audit_insert()
+            """);
+    }
+
+    private void removeFailingSeverityAuditTrigger() {
+        jdbcTemplate.execute("""
+            DROP TRIGGER IF EXISTS
+                devopshub_test_fail_severity_audit_trigger
+            ON audit_events
+            """);
+
+        jdbcTemplate.execute("""
+            DROP FUNCTION IF EXISTS
+                devopshub_test_fail_severity_audit_insert()
+            """);
+    }
 }
