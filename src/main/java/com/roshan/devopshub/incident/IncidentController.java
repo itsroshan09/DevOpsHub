@@ -170,5 +170,18 @@ public class IncidentController {
 
         return ResponseEntity.ok(history);
     }
+    @PatchMapping("/{id}/severity")
+    public IncidentResponse changeSeverity(
+            @PathVariable Long id,
+            @AuthenticationPrincipal String actorId,
+            @Valid @RequestBody ChangeIncidentSeverityRequest request
+    ) {
+        Incident incident = incidentService.changeSeverity(
+                id,
+                request.severity(),
+                Long.parseLong(actorId)
+        );
 
+        return IncidentResponse.from(incident);
+    }
 }

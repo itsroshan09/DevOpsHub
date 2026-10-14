@@ -85,7 +85,11 @@ public class SecurityConfig {
                                         "/api/services",
                                         "/api/services/**"
                                 ).hasAnyRole("ADMIN", "RESPONDER", "VIEWER")
-
+                                // Severity changes: ADMIN and RESPONDER
+                                .requestMatchers(
+                                        HttpMethod.PATCH,
+                                        "/api/incidents/*/severity"
+                                ).hasAnyRole("ADMIN", "RESPONDER")
                         // Read incidents, updates, and history: all roles
                         .requestMatchers(
                                 HttpMethod.GET,

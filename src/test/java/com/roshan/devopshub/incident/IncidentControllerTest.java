@@ -40,6 +40,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import org.springframework.boot.autoconfigure.ImportAutoConfiguration;
 import org.springframework.boot.security.autoconfigure.UserDetailsServiceAutoConfiguration;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 @ImportAutoConfiguration(
         exclude = UserDetailsServiceAutoConfiguration.class
 )
@@ -665,6 +666,56 @@ class IncidentControllerTest {
                         .value("Malformed request"))
                 .andExpect(jsonPath("$.details[0]")
                         .value("Request body contains invalid JSON or an unsupported field value"));
+
+        verifyNoInteractions(incidentService);
+    }
+    @Test
+    void changeSeverityShouldReturn200WhenRequestIsValid()
+            throws Exception {
+        Incident incident = new Incident(
+                "Payment API failure",
+                "Checkout requests are failing.",
+                IncidentSeverity.CRITICAL
+        );
+
+        when(incidentService.changeSeverity(
+                eq(17L),
+                eq(IncidentSeverity.CRITICAL),
+                eq(7L)
+        )).thenReturn(incident);
+
+        String request = """
+            {
+              "severity": "CRITICAL"
+            }
+            """;
+
+        mockMvc.perform(patch("/api/incidents/17/severity")
+                        .with(authenticateAsResponder("7"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(request))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.severity").value("CRITICAL"));
+
+        verify(incidentService).changeSeverity(
+                17L,
+                IncidentSeverity.CRITICAL,
+                7L
+        );
+    }
+
+    @Test
+    void changeSeverityShouldReturn400WhenSeverityIsMissing()
+            throws Exception {
+        String request = """
+            {}
+            """;
+
+        mockMvc.perform(patch("/api/incidents/17/severity")
+                        .with(authenticateAsResponder("7"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(request))
+                .andExpect(status().isBadRequest());
 
         verifyNoInteractions(incidentService);
     }

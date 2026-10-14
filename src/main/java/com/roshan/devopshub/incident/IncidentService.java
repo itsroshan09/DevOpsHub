@@ -122,6 +122,32 @@ public class IncidentService {
         return savedIncident;
     }
 
+    @Transactional
+    public Incident changeSeverity(
+            Long incidentId,
+            IncidentSeverity newSeverity,
+            Long actorId
+    ) {
+        Incident incident = incidentRepository.findById(incidentId)
+                .orElseThrow(() -> new IncidentNotFoundException(incidentId));
+
+        User actor = findUser(actorId);
+        IncidentSeverity previousSeverity = incident.getSeverity();
+
+        incident.changeSeverity(newSeverity);
+        Incident savedIncident = incidentRepository.save(incident);
+
+        AuditEvent auditEvent = new AuditEvent(
+                savedIncident,
+                actor,
+                "SEVERITY_CHANGED",
+                previousSeverity + " -> " + newSeverity
+        );
+
+        auditEventRepository.save(auditEvent);
+
+        return savedIncident;
+    }
 
     @Transactional
     public IncidentUpdate addUpdate(

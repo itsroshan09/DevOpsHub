@@ -551,4 +551,52 @@ class IncidentServiceTest {
         verify(incidentRepository, never()).save(any(Incident.class));
         verify(auditEventRepository, never()).save(any(AuditEvent.class));
     }
+    @Test
+    void changeSeverityShouldUpdateIncidentAndRecordAuditEvent() {
+        Incident incident = new Incident(
+                "Payment API failure",
+                "Checkout requests are failing.",
+                IncidentSeverity.HIGH
+        );
+        User actor = createTestUser();
+
+        when(incidentRepository.findById(17L)).thenReturn(Optional.of(incident));
+        when(userRepository.findById(1L)).thenReturn(Optional.of(actor));
+        when(incidentRepository.save(incident)).thenReturn(incident);
+
+        Incident result = incidentService.changeSeverity(
+                17L,
+                IncidentSeverity.CRITICAL,
+                1L
+        );
+
+        assertEquals(IncidentSeverity.CRITICAL, result.getSeverity());
+        verify(incidentRepository).save(incident);
+
+        ArgumentCaptor<AuditEvent> captor =
+                ArgumentCaptor.forClass(AuditEvent.class);
+        verify(auditEventRepository).save(captor.capture());
+
+        AuditEvent event = captor.getValue();
+        assertEquals("SEVERITY_CHANGED", event.getAction());
+        assertEquals("HIGH -> CRITICAL", event.getDetails());
+        assertSame(actor, event.getActor());
+    }
+
+    @Test
+    void changeSeverityShouldThrowWhenIncidentDoesNotExist() {
+        when(incidentRepository.findById(999L)).thenReturn(Optional.empty());
+
+        assertThrows(
+                IncidentNotFoundException.class,
+                () -> incidentService.changeSeverity(
+                        999L,
+                        IncidentSeverity.CRITICAL,
+                        1L
+                )
+        );
+
+        verify(incidentRepository, never()).save(any(Incident.class));
+        verify(auditEventRepository, never()).save(any(AuditEvent.class));
+    }
 }

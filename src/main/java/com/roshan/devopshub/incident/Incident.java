@@ -81,6 +81,10 @@ public class Incident {
         return severity;
     }
 
+    public void changeSeverity(IncidentSeverity newSeverity) {
+        this.severity = newSeverity;
+    }
+
     public IncidentStatus getStatus() {
         return status;
     }
