@@ -4,9 +4,7 @@ package com.roshan.devopshub.security;
 import com.roshan.devopshub.auth.AuthService;
 import com.roshan.devopshub.auth.LoginRequest;
 import com.roshan.devopshub.auth.LoginResponse;
-import com.roshan.devopshub.incident.Incident;
-import com.roshan.devopshub.incident.IncidentService;
-import com.roshan.devopshub.incident.IncidentSeverity;
+import com.roshan.devopshub.incident.*;
 import com.roshan.devopshub.service.ServiceResponse;
 import com.roshan.devopshub.user.User;
 import com.roshan.devopshub.user.UserRepository;
@@ -768,6 +766,148 @@ class SecurityConfigTest {
                 17L,
                 IncidentSeverity.CRITICAL,
                 202L
+        );
+    }
+
+    @Test
+    void adminShouldBeAllowedToChangeIncidentStatus() throws Exception {
+        String token = "admin-transition-token";
+        mockAuthenticatedUser(301L, UserRole.ADMIN, token);
+
+        Incident incident = new Incident(
+                "Payment API failure",
+                "Checkout requests are failing.",
+                IncidentSeverity.HIGH
+        );
+        incident.transitionTo(IncidentStatus.IN_PROGRESS);
+
+        when(incidentService.transitionStatus(
+                17L, IncidentStatus.IN_PROGRESS, 301L
+        )).thenReturn(incident);
+
+        mockMvc.perform(post("/api/incidents/17/transitions")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                            {
+                              "status": "IN_PROGRESS"
+                            }
+                            """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("IN_PROGRESS"));
+
+        verify(incidentService).transitionStatus(
+                17L, IncidentStatus.IN_PROGRESS, 301L
+        );
+    }
+
+    @Test
+    void responderShouldBeAllowedToChangeIncidentStatus()
+            throws Exception {
+        String token = "responder-transition-token";
+        mockAuthenticatedUser(302L, UserRole.RESPONDER, token);
+
+        Incident incident = new Incident(
+                "Payment API failure",
+                "Checkout requests are failing.",
+                IncidentSeverity.HIGH
+        );
+        incident.transitionTo(IncidentStatus.IN_PROGRESS);
+
+        when(incidentService.transitionStatus(
+                17L, IncidentStatus.IN_PROGRESS, 302L
+        )).thenReturn(incident);
+
+        mockMvc.perform(post("/api/incidents/17/transitions")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                            {
+                              "status": "IN_PROGRESS"
+                            }
+                            """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("IN_PROGRESS"));
+
+        verify(incidentService).transitionStatus(
+                17L, IncidentStatus.IN_PROGRESS, 302L
+        );
+    }
+
+    @Test
+    void adminShouldBeAllowedToAddIncidentUpdate() throws Exception {
+        String token = "admin-update-token";
+        mockAuthenticatedUser(303L, UserRole.ADMIN, token);
+
+        Incident incident = new Incident(
+                "Payment API failure",
+                "Checkout requests are failing.",
+                IncidentSeverity.HIGH
+        );
+        IncidentUpdate update = new IncidentUpdate(
+                incident,
+                "Database connection pool exhaustion identified."
+        );
+
+        when(incidentService.addUpdate(
+                17L,
+                "Database connection pool exhaustion identified.",
+                303L
+        )).thenReturn(update);
+
+        mockMvc.perform(post("/api/incidents/17/updates")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                            {
+                              "message": "Database connection pool exhaustion identified."
+                            }
+                            """))
+                .andExpect(status().isCreated());
+
+        verify(incidentService).addUpdate(
+                17L,
+                "Database connection pool exhaustion identified.",
+                303L
+        );
+    }
+
+    @Test
+    void responderShouldBeAllowedToAddIncidentUpdate()
+            throws Exception {
+        String token = "responder-update-token";
+        mockAuthenticatedUser(304L, UserRole.RESPONDER, token);
+
+        Incident incident = new Incident(
+                "Payment API failure",
+                "Checkout requests are failing.",
+                IncidentSeverity.HIGH
+        );
+        IncidentUpdate update = new IncidentUpdate(
+                incident,
+                "Database connection pool exhaustion identified."
+        );
+
+        when(incidentService.addUpdate(
+                17L,
+                "Database connection pool exhaustion identified.",
+                304L
+        )).thenReturn(update);
+
+        mockMvc.perform(post("/api/incidents/17/updates")
+                        .header("Authorization", "Bearer " + token)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                            {
+                              "message": "Database connection pool exhaustion identified."
+                            }
+                            """))
+                .andExpect(status().isCreated());
+
+        verify(incidentService).addUpdate(
+                17L,
+                "Database connection pool exhaustion identified.",
+                304L
         );
     }
 
