@@ -6,10 +6,7 @@ The project is being developed incrementally as a modular monolith, with a Java 
 
 ## Current Status
 
-The backend currently includes authentication, role-based authorization, a software service registry, incident management endpoints, and audit-event support.
-
-The automated test suite has most recently completed successfully with 93 tests, zero failures, zero errors, and zero skipped tests. This result reflects the code at the time of that run; rerun the tests after subsequent changes.
-
+The backend includes authentication, role-based authorization, a software service registry, incident management, investigation updates, audit-event support, and dashboard summary statistics. The latest verified local test run passed 106 tests with zero failures or errors. Run the full verification command again to confirm the current state after any changes.
 ## Technology Stack
 
 - Java 21
@@ -58,22 +55,40 @@ The application reads the following environment variables:
 | `DB_USERNAME` | PostgreSQL username |
 | `DB_PASSWORD` | PostgreSQL password |
 | `JWT_SECRET` | Secret used for JWT signing |
+When running the application directly on your host machine, use `jdbc:postgresql://localhost:5433/devopshub` for `DB_URL` while PostgreSQL is running through the supplied Compose configuration. The Compose application service uses `jdbc:postgresql://postgres:5432/devopshub` internally; do not override it with the host-side URL when starting the stack through Compose.
 
-The Compose configuration publishes PostgreSQL on `127.0.0.1:5433`. The application's default JDBC URL uses port `5432`, so set `DB_URL` explicitly when using the supplied Compose configuration.
+## Start the Application with Docker Compose
 
-Never commit real credentials or JWT secrets.
-
-## Start PostgreSQL
-
-In PowerShell, from the project root, configure a local database password in your environment before starting Compose:
+In PowerShell, from the project root, configure the required environment variables in your current session. Use your own local database password and a strong, randomly generated Base64 JWT secret.
 
 ```powershell
 $env:DB_PASSWORD = "your-local-database-password"
-docker compose up -d
+
+$bytes = New-Object byte[] 32
+$rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
+try {
+    $rng.GetBytes($bytes)
+    $env:JWT_SECRET = [Convert]::ToBase64String($bytes)
+} finally {
+    $rng.Dispose()
+}
+
+docker compose up -d --build
 docker compose ps
+docker compose logs --tail 100 app
 ```
 
-Use your own local password; do not commit it to the repository.
+Compose builds the application image and starts the backend and PostgreSQL. The backend waits for PostgreSQL's health check before starting.
+
+The API is published on `127.0.0.1:8080`, and PostgreSQL is published on `127.0.0.1:5433`. Flyway applies pending database migrations at application startup.
+
+To stop the containers, run:
+
+```powershell
+docker compose down
+```
+
+This preserves the database volume. To remove the database volume as well, use `docker compose down -v` only when you intentionally want to delete the local database data.
 
 ## Run the Backend
 
@@ -98,13 +113,13 @@ Flyway is enabled and applies pending migrations at application startup. Hiberna
 
 ## Run Tests
 
-Execute the automated test suite:
+Run the full build and test verification from PowerShell:
 
 ```powershell
-.\mvnw.cmd test
+.\mvnw.cmd --batch-mode --no-transfer-progress clean verify
 ```
 
-Review the Maven summary and ensure the build succeeds.
+The command compiles the project, runs the automated tests, and verifies the Maven build. GitHub Actions runs the equivalent Maven Wrapper command with Java 21 and PostgreSQL 18.
 
 ## API Controllers
 
