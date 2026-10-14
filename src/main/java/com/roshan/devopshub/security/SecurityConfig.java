@@ -44,6 +44,13 @@ public class SecurityConfig {
                 .authorizeHttpRequests(authorize -> authorize
                                 .dispatcherTypeMatchers(DispatcherType.ERROR).permitAll()
 
+                                // Public API documentation
+                                .requestMatchers(
+                                        "/v3/api-docs/**",
+                                        "/swagger-ui/**",
+                                        "/swagger-ui.html"
+                                ).permitAll()
+
                                 .requestMatchers(
                                         HttpMethod.POST,
                                         "/api/auth/register",
