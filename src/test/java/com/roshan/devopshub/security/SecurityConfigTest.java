@@ -41,6 +41,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.roshan.devopshub.service.ServiceManagementService;
 import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.Jwts;
+import com.roshan.devopshub.user.UserResponse;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 
 
 @SpringBootTest
@@ -488,5 +491,39 @@ class SecurityConfigTest {
                 .andExpect(status().isOk());
 
         verify(serviceManagementService).getServiceById(1L);
+    }
+    @Test
+    void currentUserEndpointShouldReturn401WithoutToken() throws Exception {
+        mockMvc.perform(get("/api/users/me"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void currentUserEndpointShouldReturnAuthenticatedUserProfile()
+            throws Exception {
+
+        String token = "current-user-profile-token";
+        mockAuthenticatedUser(31L, UserRole.VIEWER, token);
+
+        User user = mock(User.class);
+        when(user.getId()).thenReturn(31L);
+        when(user.getEmail()).thenReturn("viewer@example.com");
+        when(user.getDisplayName()).thenReturn("Test Viewer");
+        when(user.getRole()).thenReturn(UserRole.VIEWER);
+        when(user.getCreatedAt())
+                .thenReturn(java.time.Instant.parse("2026-01-01T00:00:00Z"));
+        when(userRepository.findById(31L)).thenReturn(java.util.Optional.of(user));
+
+        mockMvc.perform(get("/api/users/me")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(31))
+                .andExpect(jsonPath("$.email").value("viewer@example.com"))
+                .andExpect(jsonPath("$.displayName").value("Test Viewer"))
+                .andExpect(jsonPath("$.role").value("VIEWER"))
+                .andExpect(jsonPath("$.passwordHash").doesNotExist());
+
+        verify(userRepository, org.mockito.Mockito.atLeastOnce())
+                .findById(31L);
     }
 }

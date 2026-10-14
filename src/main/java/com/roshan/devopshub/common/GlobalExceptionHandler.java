@@ -16,6 +16,7 @@ import com.roshan.devopshub.auth.EmailAlreadyExistsException;
 import com.roshan.devopshub.auth.InvalidCredentialsException;
 import com.roshan.devopshub.service.DuplicateServiceNameException;
 import com.roshan.devopshub.service.ServiceNotFoundException;
+import com.roshan.devopshub.user.UserNotFoundException;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -143,5 +144,17 @@ public class GlobalExceptionHandler {
 
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
     }
+    @ExceptionHandler(UserNotFoundException.class)
+    public ResponseEntity<ApiErrorResponse> handleUserNotFound(
+            UserNotFoundException exception) {
 
+        ApiErrorResponse response = new ApiErrorResponse(
+                Instant.now(),
+                HttpStatus.NOT_FOUND.value(),
+                "User not found",
+                List.of(exception.getMessage())
+        );
+
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
+    }
 }
