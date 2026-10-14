@@ -92,7 +92,11 @@ public class SecurityConfig {
                                 "/api/incidents",
                                 "/api/incidents/**"
                         ).hasAnyRole("ADMIN", "RESPONDER", "VIEWER")
-
+                        // Read dashboard summary: all authenticated roles
+                                .requestMatchers(
+                                        HttpMethod.GET,
+                                        "/api/dashboard/summary"
+                                ).hasAnyRole("ADMIN", "RESPONDER", "VIEWER")
                         // Everything else still requires authentication
                         .anyRequest().authenticated()
                 )

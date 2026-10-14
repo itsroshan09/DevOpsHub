@@ -72,6 +72,9 @@ class SecurityConfigTest {
     @MockitoBean
     private ServiceManagementService serviceManagementService;
 
+    @MockitoBean
+    private com.roshan.devopshub.dashboard.DashboardService dashboardService;
+
     @Test
     void protectedEndpointShouldReturn401WithoutToken() throws Exception {
         mockMvc.perform(get("/api/incidents"))
@@ -526,4 +529,62 @@ class SecurityConfigTest {
         verify(userRepository, org.mockito.Mockito.atLeastOnce())
                 .findById(31L);
     }
+
+    @Test
+    void dashboardShouldReturn401WithoutToken() throws Exception {
+        mockMvc.perform(get("/api/dashboard/summary"))
+                .andExpect(status().isUnauthorized());
+
+        verifyNoInteractions(dashboardService);
+    }
+
+    @Test
+    void adminShouldBeAllowedToReadDashboard() throws Exception {
+        mockAuthenticatedUser(41L, UserRole.ADMIN, "dashboard-admin-token");
+        stubDashboardSummary();
+
+        mockMvc.perform(get("/api/dashboard/summary")
+                        .header("Authorization", "Bearer dashboard-admin-token"))
+                .andExpect(status().isOk());
+
+        verify(dashboardService).getSummary();
+    }
+
+    @Test
+    void responderShouldBeAllowedToReadDashboard() throws Exception {
+        mockAuthenticatedUser(
+                42L, UserRole.RESPONDER, "dashboard-responder-token"
+        );
+        stubDashboardSummary();
+
+        mockMvc.perform(get("/api/dashboard/summary")
+                        .header(
+                                "Authorization",
+                                "Bearer dashboard-responder-token"
+                        ))
+                .andExpect(status().isOk());
+
+        verify(dashboardService).getSummary();
+    }
+
+    @Test
+    void viewerShouldBeAllowedToReadDashboard() throws Exception {
+        mockAuthenticatedUser(43L, UserRole.VIEWER, "dashboard-viewer-token");
+        stubDashboardSummary();
+
+        mockMvc.perform(get("/api/dashboard/summary")
+                        .header("Authorization", "Bearer dashboard-viewer-token"))
+                .andExpect(status().isOk());
+
+        verify(dashboardService).getSummary();
+    }
+
+    private void stubDashboardSummary() {
+        when(dashboardService.getSummary()).thenReturn(
+                new com.roshan.devopshub.dashboard.DashboardSummaryResponse(
+                        3L, 1L, 1L, 1L, 0L, 1L, 1L, 1L
+                )
+        );
+    }
+
 }
