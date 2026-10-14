@@ -587,4 +587,188 @@ class SecurityConfigTest {
         );
     }
 
+    @Test
+    void adminShouldBeAllowedToAssignIncident() throws Exception {
+        String token = "admin-assignment-token";
+
+        mockAuthenticatedUser(101L, UserRole.ADMIN, token);
+
+        Incident incident = new Incident(
+                "API gateway failure",
+                "Requests are failing.",
+                IncidentSeverity.HIGH
+        );
+
+        when(incidentService.assignIncident(17L, 2L, 101L))
+                .thenReturn(incident);
+
+        mockMvc.perform(
+                        org.springframework.test.web.servlet.request
+                                .MockMvcRequestBuilders
+                                .put("/api/incidents/17/assignee")
+                                .header(
+                                        org.springframework.http.HttpHeaders.AUTHORIZATION,
+                                        "Bearer " + token
+                                )
+                                .contentType(
+                                        org.springframework.http.MediaType.APPLICATION_JSON
+                                )
+                                .content("""
+                                    {
+                                      "userId": 2
+                                    }
+                                    """)
+                )
+                .andExpect(status().isOk());
+
+        verify(incidentService).assignIncident(17L, 2L, 101L);
+    }
+
+    @Test
+    void responderShouldBeAllowedToAssignIncident() throws Exception {
+        String token = "responder-assignment-token";
+
+        mockAuthenticatedUser(102L, UserRole.RESPONDER, token);
+
+        Incident incident = new Incident(
+                "API gateway failure",
+                "Requests are failing.",
+                IncidentSeverity.HIGH
+        );
+
+        when(incidentService.assignIncident(17L, 2L, 102L))
+                .thenReturn(incident);
+
+        mockMvc.perform(
+                        org.springframework.test.web.servlet.request
+                                .MockMvcRequestBuilders
+                                .put("/api/incidents/17/assignee")
+                                .header(
+                                        org.springframework.http.HttpHeaders.AUTHORIZATION,
+                                        "Bearer " + token
+                                )
+                                .contentType(
+                                        org.springframework.http.MediaType.APPLICATION_JSON
+                                )
+                                .content("""
+                                    {
+                                      "userId": 2
+                                    }
+                                    """)
+                )
+                .andExpect(status().isOk());
+
+        verify(incidentService).assignIncident(17L, 2L, 102L);
+    }
+
+    @Test
+    void viewerShouldReceive403WhenChangingIncidentSeverity()
+            throws Exception {
+        mockAuthenticatedUser(
+                24L,
+                UserRole.VIEWER,
+                "viewer-severity-token"
+        );
+
+        mockMvc.perform(
+                        org.springframework.test.web.servlet.request
+                                .MockMvcRequestBuilders
+                                .patch("/api/incidents/1/severity")
+                                .header(
+                                        "Authorization",
+                                        "Bearer viewer-severity-token"
+                                )
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("""
+                                    {
+                                      "severity": "CRITICAL"
+                                    }
+                                    """)
+                )
+                .andExpect(status().isForbidden());
+
+        verifyNoInteractions(incidentService);
+    }
+
+    @Test
+    void adminShouldBeAllowedToChangeIncidentSeverity() throws Exception {
+        String token = "admin-severity-token";
+
+        mockAuthenticatedUser(201L, UserRole.ADMIN, token);
+
+        Incident incident = new Incident(
+                "Payment API failure",
+                "Checkout requests are failing.",
+                IncidentSeverity.CRITICAL
+        );
+
+        when(incidentService.changeSeverity(
+                17L,
+                IncidentSeverity.CRITICAL,
+                201L
+        )).thenReturn(incident);
+
+        mockMvc.perform(
+                        org.springframework.test.web.servlet.request
+                                .MockMvcRequestBuilders
+                                .patch("/api/incidents/17/severity")
+                                .header("Authorization", "Bearer " + token)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("""
+                                    {
+                                      "severity": "CRITICAL"
+                                    }
+                                    """)
+                )
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.severity").value("CRITICAL"));
+
+        verify(incidentService).changeSeverity(
+                17L,
+                IncidentSeverity.CRITICAL,
+                201L
+        );
+    }
+
+    @Test
+    void responderShouldBeAllowedToChangeIncidentSeverity()
+            throws Exception {
+        String token = "responder-severity-token";
+
+        mockAuthenticatedUser(202L, UserRole.RESPONDER, token);
+
+        Incident incident = new Incident(
+                "Payment API failure",
+                "Checkout requests are failing.",
+                IncidentSeverity.CRITICAL
+        );
+
+        when(incidentService.changeSeverity(
+                17L,
+                IncidentSeverity.CRITICAL,
+                202L
+        )).thenReturn(incident);
+
+        mockMvc.perform(
+                        org.springframework.test.web.servlet.request
+                                .MockMvcRequestBuilders
+                                .patch("/api/incidents/17/severity")
+                                .header("Authorization", "Bearer " + token)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("""
+                                    {
+                                      "severity": "CRITICAL"
+                                    }
+                                    """)
+                )
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.severity").value("CRITICAL"));
+
+        verify(incidentService).changeSeverity(
+                17L,
+                IncidentSeverity.CRITICAL,
+                202L
+        );
+    }
+
 }
