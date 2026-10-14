@@ -17,7 +17,11 @@ services:
       timeout: 5s
       retries: 10
 
+
   app:
+    build:
+      context: .
+      dockerfile: Dockerfile
     image: devopshub-api:local
     container_name: devopshub-api
     environment:
