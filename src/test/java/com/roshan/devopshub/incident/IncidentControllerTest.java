@@ -38,7 +38,11 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
-
+import org.springframework.boot.autoconfigure.ImportAutoConfiguration;
+import org.springframework.boot.security.autoconfigure.UserDetailsServiceAutoConfiguration;
+@ImportAutoConfiguration(
+        exclude = UserDetailsServiceAutoConfiguration.class
+)
 @WebMvcTest(IncidentController.class)
 @Import(IncidentControllerTest.TestSecurityConfig.class)
 class IncidentControllerTest {

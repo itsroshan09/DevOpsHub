@@ -23,7 +23,13 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import org.springframework.boot.autoconfigure.ImportAutoConfiguration;
+import org.springframework.boot.security.autoconfigure.UserDetailsServiceAutoConfiguration;
 
+
+@ImportAutoConfiguration(
+        exclude = UserDetailsServiceAutoConfiguration.class
+)
 @WebMvcTest(ServiceController.class)
 @Import(ServiceControllerTest.TestSecurityConfig.class)
 class ServiceControllerTest {
