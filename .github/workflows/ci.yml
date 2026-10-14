@@ -23,7 +23,7 @@ jobs:
         env:
           POSTGRES_DB: devopshub
           POSTGRES_USER: devopshub_app
-          POSTGRES_PASSWORD: ci_test_password
+          POSTGRES_PASSWORD: "ci_test_password"
         ports:
           - 5432:5432
         options: >-
@@ -35,8 +35,8 @@ jobs:
     env:
       DB_URL: jdbc:postgresql://localhost:5432/devopshub
       DB_USERNAME: devopshub_app
-      DB_PASSWORD: ci_test_password
-      JWT_SECRET: ci-only-test-secret-key-that-is-long-enough-for-hmac-sha
+      DB_PASSWORD: "ci_test_password"
+      JWT_SECRET: "bMu64AdSbW+XR+W1bN6kt7GAA4lfc1ps5uQsfHP6oCU="
 
     steps:
       - name: Check out repository
