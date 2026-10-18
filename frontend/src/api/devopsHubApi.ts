@@ -36,7 +36,15 @@ export interface IncidentPage {
     totalElements: number
     totalPages: number
 }
+export type UserRole = 'ADMIN' | 'RESPONDER' | 'VIEWER'
 
+export interface CurrentUser {
+    id: number
+    email: string
+    displayName: string
+    role: UserRole
+    createdAt: string
+}
 export interface DashboardSummary {
     totalIncidents: number
     openIncidents: number
@@ -181,6 +189,22 @@ export function addIncidentUpdate(
         },
     )
 }
+export function getCurrentUser(): Promise<CurrentUser> {
+    return request<CurrentUser>('/users/me')
+}
+export function transitionIncident(
+    incidentId: number,
+    status: IncidentStatus,
+): Promise<Incident> {
+    return request<Incident>(
+        `/incidents/${incidentId}/transitions`,
+        {
+            method: 'POST',
+            body: JSON.stringify({ status }),
+        },
+    )
+}
+
 
 export function getIncidentById(id: number): Promise<Incident> {
     return request<Incident>(`/incidents/${id}`)

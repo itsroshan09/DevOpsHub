@@ -1579,3 +1579,18 @@
     gap: 5px;
   }
 }
+.incident-transition-panel {
+  margin-top: 1.5rem;
+  padding: 1.25rem;
+  border: 1px solid var(--border-color, #dce2ea);
+  border-radius: 12px;
+}
+
+.incident-transition-panel h2 {
+  margin-top: 0;
+}
+
+.incident-transition-panel .primary-button,
+.incident-transition-panel .secondary-button {
+  margin-top: 0.5rem;
+}

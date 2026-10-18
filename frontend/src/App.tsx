@@ -11,6 +11,10 @@ import {
   getIncidentHistory,
   addIncidentUpdate,
   login,
+  getCurrentUser,
+  transitionIncident,
+  type CurrentUser,
+  type IncidentStatus,
   saveAccessToken,
   type DashboardSummary,
   type Incident,
@@ -83,6 +87,13 @@ function App() {
   const [historyLoading, setHistoryLoading] = useState(false)
   const [historyError, setHistoryError] = useState<string | null>(null)
 
+  const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null)
+  const [userLoading, setUserLoading] = useState(false)
+
+  const [transitionLoading, setTransitionLoading] = useState(false)
+  const [transitionError, setTransitionError] = useState<string | null>(null)
+  const [transitionSuccess, setTransitionSuccess] = useState<string | null>(null)
+
   async function handleLogin(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setLoginError(null)
@@ -136,8 +147,60 @@ function App() {
     setHistoryLoading(false)
     setHistoryError(null)
     setPassword('')
+    setCurrentUser(null)
+    setUserLoading(false)
+    setTransitionLoading(false)
+    setTransitionError(null)
+    setTransitionSuccess(null)
   }
+  async function handleIncidentTransition(status: IncidentStatus) {
+    if (!selectedIncident || transitionLoading) {
+      return
+    }
 
+    setTransitionLoading(true)
+    setTransitionError(null)
+    setTransitionSuccess(null)
+
+    try {
+      const updatedIncident = await transitionIncident(
+          selectedIncident.id,
+          status,
+      )
+
+      setSelectedIncident(updatedIncident)
+
+      setIncidents((current) =>
+          current.map((incident) =>
+              incident.id === updatedIncident.id ? updatedIncident : incident,
+          ),
+      )
+
+      setTransitionSuccess(
+          `Incident status changed to ${formatStatus(updatedIncident.status)}.`,
+      )
+
+      try {
+        const history = await getIncidentHistory(updatedIncident.id)
+        setIncidentHistory(history)
+        setHistoryError(null)
+      } catch (err) {
+        setHistoryError(
+            err instanceof Error
+                ? err.message
+                : 'Status changed, but incident history could not be refreshed.',
+        )
+      }
+    } catch (err) {
+      setTransitionError(
+          err instanceof Error
+              ? err.message
+              : 'Unable to change incident status.',
+      )
+    } finally {
+      setTransitionLoading(false)
+    }
+  }
   async function handleOpenIncident(id: number) {
     setDetailLoading(true)
     setDetailError(null)
@@ -240,6 +303,41 @@ function App() {
       setUpdateSubmitting(false)
     }
   }
+
+  useEffect(() => {
+    if (!token) {
+      return
+    }
+
+    let active = true
+
+    async function loadCurrentUser() {
+      setUserLoading(true)
+
+      try {
+        const user = await getCurrentUser()
+
+        if (active) {
+          setCurrentUser(user)
+        }
+      } catch (err) {
+        if (active) {
+          setCurrentUser(null)
+          console.error('Unable to load current user:', err)
+        }
+      } finally {
+        if (active) {
+          setUserLoading(false)
+        }
+      }
+    }
+
+    void loadCurrentUser()
+
+    return () => {
+      active = false
+    }
+  }, [token])
 
   useEffect(() => {
     if (!token) {
@@ -467,6 +565,63 @@ function App() {
                   <p>{selectedIncident.description}</p>
 
                   <dl>
+                    {currentUser &&
+                        (currentUser.role === 'ADMIN' || currentUser.role === 'RESPONDER') && (
+                            <section className="incident-transition-panel" aria-labelledby="transition-heading">
+                              <h2 id="transition-heading">Incident status</h2>
+
+                              <p>
+                                Current status: <strong>{formatStatus(selectedIncident.status)}</strong>
+                              </p>
+
+                              {selectedIncident.status === 'OPEN' && (
+                                  <button
+                                      className="primary-button"
+                                      type="button"
+                                      disabled={transitionLoading}
+                                      onClick={() => void handleIncidentTransition('IN_PROGRESS')}
+                                  >
+                                    {transitionLoading ? 'Updating…' : 'Start investigation'}
+                                  </button>
+                              )}
+
+                              {selectedIncident.status === 'IN_PROGRESS' && (
+                                  <button
+                                      className="primary-button"
+                                      type="button"
+                                      disabled={transitionLoading}
+                                      onClick={() => void handleIncidentTransition('RESOLVED')}
+                                  >
+                                    {transitionLoading ? 'Updating…' : 'Resolve incident'}
+                                  </button>
+                              )}
+
+                              {selectedIncident.status === 'RESOLVED' && (
+                                  <button
+                                      className="secondary-button"
+                                      type="button"
+                                      disabled={transitionLoading}
+                                      onClick={() => void handleIncidentTransition('IN_PROGRESS')}
+                                  >
+                                    {transitionLoading ? 'Updating…' : 'Reopen incident'}
+                                  </button>
+                              )}
+
+                              {transitionError && (
+                                  <div className="error-banner" role="alert">
+                                    {transitionError}
+                                  </div>
+                              )}
+
+                              {transitionSuccess && (
+                                  <div className="success-banner" role="status">
+                                    {transitionSuccess}
+                                  </div>
+                              )}
+
+                              {userLoading && <p>Checking permissions…</p>}
+                            </section>
+                        )}
                     <dt>Status</dt>
                     <dd>{formatStatus(selectedIncident.status)}</dd>
 
