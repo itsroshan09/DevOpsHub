@@ -233,6 +233,7 @@ class IncidentControllerTest {
         when(incidentService.getIncidents(
                 isNull(),
                 isNull(),
+                isNull(),
                 any(PageRequest.class)
         )).thenReturn(page);
 
@@ -247,6 +248,7 @@ class IncidentControllerTest {
                 .andExpect(jsonPath("$.size").value(10));
 
         verify(incidentService).getIncidents(
+                isNull(),
                 isNull(),
                 isNull(),
                 any(PageRequest.class)
@@ -296,6 +298,7 @@ class IncidentControllerTest {
         when(incidentService.getIncidents(
                 isNull(),
                 isNull(),
+                isNull(),
                 any(PageRequest.class)
         )).thenReturn(Page.empty());
 
@@ -305,6 +308,7 @@ class IncidentControllerTest {
                 .andExpect(jsonPath("$.content").isEmpty());
 
         verify(incidentService).getIncidents(
+                isNull(),
                 isNull(),
                 isNull(),
                 any(PageRequest.class)
@@ -318,6 +322,7 @@ class IncidentControllerTest {
         when(incidentService.getIncidents(
                 eq(IncidentStatus.OPEN),
                 eq(IncidentSeverity.HIGH),
+                isNull(),
                 any(Pageable.class)
         )).thenReturn(Page.empty());
 
@@ -330,6 +335,7 @@ class IncidentControllerTest {
         verify(incidentService).getIncidents(
                 eq(IncidentStatus.OPEN),
                 eq(IncidentSeverity.HIGH),
+                isNull(),
                 any(Pageable.class)
         );
     }
@@ -718,5 +724,29 @@ class IncidentControllerTest {
                 .andExpect(status().isBadRequest());
 
         verifyNoInteractions(incidentService);
+    }
+    @Test
+    void getIncidentsShouldPassSearchTermToService()
+            throws Exception {
+
+        when(incidentService.getIncidents(
+                isNull(),
+                isNull(),
+                eq("gateway"),
+                any(Pageable.class)
+        )).thenReturn(Page.empty());
+
+        mockMvc.perform(get(
+                        "/api/incidents?search=gateway&page=0&size=10"
+                ))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content").isEmpty());
+
+        verify(incidentService).getIncidents(
+                isNull(),
+                isNull(),
+                eq("gateway"),
+                any(Pageable.class)
+        );
     }
 }

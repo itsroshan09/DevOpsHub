@@ -77,6 +77,7 @@ public class IncidentController {
             @RequestParam(required = false) IncidentStatus status,
             @RequestParam(required = false) IncidentSeverity severity,
             @RequestParam(defaultValue = "0") int page,
+            @RequestParam(required = false) String search,
             @RequestParam(defaultValue = "10") int size) {
 
         if (page < 0) {
@@ -96,7 +97,7 @@ public class IncidentController {
         );
 
         Page<IncidentResponse> result =
-                incidentService.getIncidents(status, severity, pageable)
+                incidentService.getIncidents(status, severity, search, pageable)
                         .map(IncidentResponse::from);
 
         return IncidentPageResponse.from(result);

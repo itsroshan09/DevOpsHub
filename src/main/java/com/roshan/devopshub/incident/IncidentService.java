@@ -64,7 +64,14 @@ public class IncidentService {
         return incidentRepository.findWithAssigneeById(id)
                 .orElseThrow(() -> new IncidentNotFoundException(id));
     }
-
+    @Transactional(readOnly = true)
+    public Page<Incident> getIncidents(
+            IncidentStatus status,
+            IncidentSeverity severity,
+            Pageable pageable
+    ) {
+        return getIncidents(status, severity, null, pageable);
+    }
     @Transactional(readOnly = true)
     public Page<Incident> getIncidents(Pageable pageable) {
         return incidentRepository.findAll(pageable);
@@ -74,9 +81,17 @@ public class IncidentService {
     public Page<Incident> getIncidents(
             IncidentStatus status,
             IncidentSeverity severity,
+            String search,
             Pageable pageable
     ) {
-        return incidentRepository.findByFilters(status, severity, pageable);
+        String normalizedSearch = search == null ? "" : search.trim();
+
+        return incidentRepository.findByFilters(
+                status,
+                severity,
+                normalizedSearch,
+                pageable
+        );
     }
 
     @Transactional

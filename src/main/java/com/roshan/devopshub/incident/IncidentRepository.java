@@ -17,13 +17,19 @@ public interface IncidentRepository extends JpaRepository<Incident, Long> {
 
     @EntityGraph(attributePaths = "assignee")
     @Query("""
-            SELECT i FROM Incident i
-            WHERE (:status IS NULL OR i.status = :status)
-              AND (:severity IS NULL OR i.severity = :severity)
-            """)
+    SELECT i FROM Incident i
+    WHERE (:status IS NULL OR i.status = :status)
+      AND (:severity IS NULL OR i.severity = :severity)
+      AND (
+          :search = ''
+          OR LOWER(i.title) LIKE LOWER(CONCAT('%', :search, '%'))
+          OR LOWER(i.description) LIKE LOWER(CONCAT('%', :search, '%'))
+      )
+    """)
     Page<Incident> findByFilters(
             @Param("status") IncidentStatus status,
             @Param("severity") IncidentSeverity severity,
+            @Param("search") String search,
             Pageable pageable
     );
 

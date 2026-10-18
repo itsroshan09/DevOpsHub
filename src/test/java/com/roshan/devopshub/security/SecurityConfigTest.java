@@ -241,6 +241,7 @@ class SecurityConfigTest {
         verify(incidentService).getIncidents(
                 any(),
                 any(),
+                isNull(),
                 any(Pageable.class)
         );
     }
@@ -271,6 +272,7 @@ class SecurityConfigTest {
         when(incidentService.getIncidents(
                 any(),
                 any(),
+                isNull(),
                 any(Pageable.class)
         )).thenReturn(new PageImpl<>(List.of()));
     }
