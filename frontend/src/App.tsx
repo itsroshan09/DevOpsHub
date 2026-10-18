@@ -7,10 +7,13 @@ import {
   getAccessToken,
   getDashboardSummary,
   getIncidents,
+  getIncidentUpdates,
+  addIncidentUpdate,
   login,
   saveAccessToken,
   type DashboardSummary,
   type Incident,
+  type IncidentUpdate,
   getIncidentById,
   type IncidentSeverity,
 } from './api/devopsHubApi'
@@ -55,6 +58,13 @@ function App() {
   const [selectedIncident, setSelectedIncident] = useState<Incident | null>(null)
   const [detailLoading, setDetailLoading] = useState(false)
   const [detailError, setDetailError] = useState<string | null>(null)
+  const [incidentUpdates, setIncidentUpdates] = useState<IncidentUpdate[]>([])
+  const [updatesLoading, setUpdatesLoading] = useState(false)
+  const [updatesError, setUpdatesError] = useState<string | null>(null)
+  const [updateMessage, setUpdateMessage] = useState('')
+  const [updateSubmitting, setUpdateSubmitting] = useState(false)
+  const [updateSubmitError, setUpdateSubmitError] = useState<string | null>(null)
+  const [updateSubmitSuccess, setUpdateSubmitSuccess] = useState<string | null>(null)
 
   async function handleLogin(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -98,6 +108,13 @@ function App() {
     setSelectedIncident(null)
     setDetailLoading(false)
     setDetailError(null)
+    setIncidentUpdates([])
+    setUpdatesLoading(false)
+    setUpdatesError(null)
+    setUpdateMessage('')
+    setUpdateSubmitting(false)
+    setUpdateSubmitError(null)
+    setUpdateSubmitSuccess(null)
     setPassword('')
   }
 
@@ -105,6 +122,12 @@ function App() {
     setDetailLoading(true)
     setDetailError(null)
     setSelectedIncident(null)
+    setIncidentUpdates([])
+    setUpdatesLoading(true)
+    setUpdatesError(null)
+    setUpdateMessage('')
+    setUpdateSubmitError(null)
+    setUpdateSubmitSuccess(null)
 
     try {
       const incident = await getIncidentById(id)
@@ -117,6 +140,59 @@ function App() {
       )
     } finally {
       setDetailLoading(false)
+    }
+
+    try {
+      const updates = await getIncidentUpdates(id)
+      setIncidentUpdates(updates)
+    } catch (err) {
+      setUpdatesError(
+          err instanceof Error
+              ? err.message
+              : 'Unable to load investigation updates.',
+      )
+    } finally {
+      setUpdatesLoading(false)
+    }
+  }
+
+  async function handleAddIncidentUpdate(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setUpdateSubmitError(null)
+    setUpdateSubmitSuccess(null)
+
+    if (!selectedIncident) {
+      return
+    }
+
+    const message = updateMessage.trim()
+
+    if (!message) {
+      setUpdateSubmitError('Enter an investigation update before submitting.')
+      return
+    }
+
+    if (message.length > 5000) {
+      setUpdateSubmitError('An update must not exceed 5,000 characters.')
+      return
+    }
+
+    setUpdateSubmitting(true)
+
+    try {
+      const createdUpdate = await addIncidentUpdate(selectedIncident.id, message)
+      setIncidentUpdates((currentUpdates) => [...currentUpdates, createdUpdate])
+      setUpdateMessage('')
+      setUpdateSubmitSuccess('Investigation update added successfully.')
+      setUpdatesError(null)
+    } catch (err) {
+      setUpdateSubmitError(
+          err instanceof Error
+              ? err.message
+              : 'Unable to add the investigation update.',
+      )
+    } finally {
+      setUpdateSubmitting(false)
     }
   }
 
@@ -319,6 +395,11 @@ function App() {
                 onClick={() => {
                   setSelectedIncident(null)
                   setDetailError(null)
+                  setIncidentUpdates([])
+                  setUpdatesError(null)
+                  setUpdateMessage('')
+                  setUpdateSubmitError(null)
+                  setUpdateSubmitSuccess(null)
                 }}
             >
               Back to dashboard
@@ -354,6 +435,101 @@ function App() {
                     <dt>Last updated</dt>
                     <dd>{new Date(selectedIncident.updatedAt).toLocaleString()}</dd>
                   </dl>
+                </section>
+            )}
+
+            {selectedIncident && (
+                <section className="incident-updates-panel" aria-labelledby="incident-updates-heading">
+                  <div className="incident-updates-heading">
+                    <div>
+                      <h2 id="incident-updates-heading">Investigation updates</h2>
+                      <p>Record findings, progress, and relevant investigation notes.</p>
+                    </div>
+                    <span className="incident-updates-count">{incidentUpdates.length}</span>
+                  </div>
+
+                  {updatesLoading ? (
+                      <p className="incident-updates-message">Loading investigation updates…</p>
+                  ) : updatesError ? (
+                      <div className="error-banner" role="alert">
+                        <span>{updatesError}</span>
+                        <button
+                            type="button"
+                            className="secondary-button"
+                            onClick={async () => {
+                              setUpdatesLoading(true)
+                              setUpdatesError(null)
+                              try {
+                                const updates = await getIncidentUpdates(selectedIncident.id)
+                                setIncidentUpdates(updates)
+                              } catch (err) {
+                                setUpdatesError(
+                                    err instanceof Error
+                                        ? err.message
+                                        : 'Unable to load investigation updates.',
+                                )
+                              } finally {
+                                setUpdatesLoading(false)
+                              }
+                            }}
+                        >
+                          Retry
+                        </button>
+                      </div>
+                  ) : incidentUpdates.length === 0 ? (
+                      <p className="incident-updates-empty">
+                        No investigation updates yet. Add the first note below.
+                      </p>
+                  ) : (
+                      <ol className="incident-updates-list">
+                        {incidentUpdates.map((update) => (
+                            <li className="incident-update-item" key={update.id}>
+                              <div className="incident-update-meta">
+                                <span>Investigation note</span>
+                                <time dateTime={update.createdAt}>
+                                  {new Date(update.createdAt).toLocaleString()}
+                                </time>
+                              </div>
+                              <p>{update.message}</p>
+                            </li>
+                        ))}
+                      </ol>
+                  )}
+
+                  <form className="incident-update-form" onSubmit={handleAddIncidentUpdate}>
+                    <label htmlFor="incident-update-message">Add an investigation update</label>
+                    <textarea
+                        id="incident-update-message"
+                        value={updateMessage}
+                        onChange={(event) => {
+                          setUpdateMessage(event.target.value)
+                          setUpdateSubmitError(null)
+                          setUpdateSubmitSuccess(null)
+                        }}
+                        placeholder="Record findings, actions taken, or the next investigation step…"
+                        rows={5}
+                        maxLength={5000}
+                        required
+                        disabled={updateSubmitting}
+                    />
+                    <div className="incident-update-form-footer">
+                      <span>{updateMessage.length}/5000 characters</span>
+                      <button
+                          className="primary-button"
+                          type="submit"
+                          disabled={updateSubmitting || !updateMessage.trim() || updateMessage.length > 5000}
+                      >
+                        {updateSubmitting ? 'Saving update…' : 'Add update'}
+                      </button>
+                    </div>
+
+                    {updateSubmitError && (
+                        <div className="error-banner" role="alert">{updateSubmitError}</div>
+                    )}
+                    {updateSubmitSuccess && (
+                        <div className="success-banner" role="status">{updateSubmitSuccess}</div>
+                    )}
+                  </form>
                 </section>
             )}
           </section>

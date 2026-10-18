@@ -1087,3 +1087,324 @@
   outline: 2px solid currentColor;
   outline-offset: 3px;
 }
+
+
+/* =========================================
+   INCIDENT DETAILS PAGE
+   ========================================= */
+
+.incident-details {
+  width: 100%;
+  max-width: 1000px;
+  margin: 28px auto 0;
+  padding: 32px;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
+  box-shadow: 0 4px 18px rgb(15 23 42 / 4%);
+  color: #172033;
+}
+
+/* Incident reference, e.g. INC-0027 */
+.incident-details > p:first-child {
+  display: inline-flex;
+  align-items: center;
+  margin: 0 0 14px;
+  padding: 6px 10px;
+  border: 1px solid #e0e7ff;
+  border-radius: 6px;
+  background: #eef2ff;
+  color: #4338ca;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+/* Incident title */
+.incident-details h1 {
+  margin: 0 0 18px;
+  color: #111827;
+  font-size: clamp(24px, 3vw, 32px);
+  font-weight: 700;
+  line-height: 1.3;
+  letter-spacing: -0.035em;
+  overflow-wrap: anywhere;
+}
+
+/* Incident description */
+.incident-details > p:not(:first-child) {
+  margin: 0;
+  color: #4b5563;
+  font-size: 15px;
+  line-height: 1.8;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+/* Metadata panel */
+.incident-details dl {
+  display: grid;
+  grid-template-columns: minmax(120px, 180px) minmax(0, 1fr);
+  margin: 30px 0 0;
+  padding: 0;
+  border-top: 1px solid #e5e7eb;
+}
+
+/* Metadata labels */
+.incident-details dt {
+  margin: 0;
+  padding: 17px 16px 17px 0;
+  border-bottom: 1px solid #edf0f4;
+  color: #6b7280;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/* Metadata values */
+.incident-details dd {
+  min-width: 0;
+  margin: 0;
+  padding: 17px 0;
+  border-bottom: 1px solid #edf0f4;
+  color: #1f2937;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+/* Remove the final row's bottom border */
+.incident-details dt:nth-last-of-type(1),
+.incident-details dd:last-child {
+  border-bottom: 0;
+}
+
+/* Incident details loading state */
+.main-content .page-content > p {
+  color: #6b7280;
+  font-size: 14px;
+}
+
+/* Incident details page back button */
+.main-content .page-content > .secondary-button {
+  margin-top: 8px;
+}
+
+/* Responsive layout for tablets and phones */
+@media (max-width: 640px) {
+  .incident-details {
+    margin-top: 20px;
+    padding: 22px 18px;
+    border-radius: 12px;
+  }
+
+  .incident-details h1 {
+    font-size: 25px;
+  }
+
+  .incident-details dl {
+    grid-template-columns: minmax(0, 1fr);
+    margin-top: 24px;
+  }
+
+  .incident-details dt {
+    padding: 14px 0 4px;
+    border-bottom: 0;
+    font-size: 12px;
+  }
+
+  .incident-details dd {
+    padding: 2px 0 14px;
+  }
+
+  .incident-details dt:nth-last-of-type(1) {
+    padding-top: 14px;
+  }
+}
+
+/* Investigation updates panel */
+.incident-updates-panel {
+  width: 100%;
+  max-width: 1000px;
+  margin: 24px auto 32px;
+  padding: 28px 32px;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
+  box-shadow: 0 4px 18px rgb(15 23 42 / 4%);
+  color: #172033;
+}
+
+.incident-updates-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 22px;
+}
+
+.incident-updates-heading h2 {
+  margin: 0 0 6px;
+  color: #111827;
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.incident-updates-heading p,
+.incident-updates-message,
+.incident-updates-empty {
+  margin: 0;
+  color: #6b7280;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.incident-updates-count {
+  display: inline-flex;
+  min-width: 32px;
+  height: 32px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: #eef2ff;
+  color: #4338ca;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.incident-updates-empty {
+  padding: 20px;
+  border: 1px dashed #d1d5db;
+  border-radius: 10px;
+  background: #f9fafb;
+}
+
+.incident-updates-list {
+  display: grid;
+  gap: 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.incident-update-item {
+  padding: 18px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #ffffff;
+}
+
+.incident-update-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.incident-update-meta span {
+  color: #374151;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.incident-update-meta time {
+  color: #6b7280;
+  font-size: 12px;
+}
+
+.incident-update-item > p {
+  margin: 0;
+  color: #374151;
+  font-size: 14px;
+  line-height: 1.75;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.incident-update-form {
+  display: grid;
+  gap: 12px;
+  margin-top: 26px;
+  padding-top: 24px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.incident-update-form label {
+  color: #374151;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.incident-update-form textarea {
+  width: 100%;
+  min-height: 120px;
+  padding: 13px 14px;
+  border: 1px solid #d1d5db;
+  border-radius: 9px;
+  background: #ffffff;
+  color: #111827;
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.6;
+  resize: vertical;
+}
+
+.incident-update-form textarea::placeholder {
+  color: #9ca3af;
+}
+
+.incident-update-form textarea:focus-visible {
+  border-color: #6366f1;
+  outline: 3px solid rgb(99 102 241 / 15%);
+}
+
+.incident-update-form textarea:disabled {
+  background: #f9fafb;
+  cursor: not-allowed;
+}
+
+.incident-update-form-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.incident-update-form-footer > span {
+  color: #6b7280;
+  font-size: 12px;
+}
+
+.incident-update-form .error-banner,
+.incident-update-form .success-banner {
+  margin: 0;
+}
+
+@media (max-width: 640px) {
+  .incident-updates-panel {
+    margin-top: 18px;
+    padding: 22px 18px;
+    border-radius: 12px;
+  }
+
+  .incident-updates-heading h2 {
+    font-size: 18px;
+  }
+
+  .incident-update-item {
+    padding: 14px;
+  }
+
+  .incident-update-form-footer {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .incident-update-form-footer .primary-button {
+    width: 100%;
+  }
+}

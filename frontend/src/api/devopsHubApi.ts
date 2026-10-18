@@ -13,6 +13,12 @@ export interface Incident {
     assigneeId: number | null
     assigneeEmail: string | null
 }
+export interface IncidentUpdate {
+    id: number
+    incidentId: number
+    message: string
+    createdAt: string
+}
 export interface CreateIncidentRequest {
     title: string
     description: string
@@ -142,6 +148,27 @@ export function getIncidents(
     }
 
     return request<IncidentPage>(`/incidents?${params.toString()}`)
+}
+
+export function getIncidentUpdates(
+    incidentId: number,
+): Promise<IncidentUpdate[]> {
+    return request<IncidentUpdate[]>(
+        `/incidents/${incidentId}/updates`,
+    )
+}
+
+export function addIncidentUpdate(
+    incidentId: number,
+    message: string,
+): Promise<IncidentUpdate> {
+    return request<IncidentUpdate>(
+        `/incidents/${incidentId}/updates`,
+        {
+            method: 'POST',
+            body: JSON.stringify({ message }),
+        },
+    )
 }
 
 export function getIncidentById(id: number): Promise<Incident> {
