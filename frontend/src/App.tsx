@@ -8,12 +8,14 @@ import {
   getDashboardSummary,
   getIncidents,
   getIncidentUpdates,
+  getIncidentHistory,
   addIncidentUpdate,
   login,
   saveAccessToken,
   type DashboardSummary,
   type Incident,
   type IncidentUpdate,
+  type IncidentHistoryItem,
   getIncidentById,
   type IncidentSeverity,
 } from './api/devopsHubApi'
@@ -28,6 +30,18 @@ function formatIncidentId(id: number): string {
 
 function formatAssignee(incident: Incident): string {
   return incident.assigneeEmail ?? 'Unassigned'
+}
+
+function formatHistoryType(type: string): string {
+  const labels: Record<string, string> = {
+    INCIDENT_CREATED: 'Incident created',
+    INCIDENT_ASSIGNED: 'Assignee changed',
+    SEVERITY_CHANGED: 'Severity changed',
+    STATUS_CHANGED: 'Status changed',
+    INVESTIGATION_UPDATE: 'Investigation update',
+  }
+
+  return labels[type] ?? type.replaceAll('_', ' ').toLowerCase().replace(/^\w/, (char) => char.toUpperCase())
 }
 
 function App() {
@@ -65,6 +79,9 @@ function App() {
   const [updateSubmitting, setUpdateSubmitting] = useState(false)
   const [updateSubmitError, setUpdateSubmitError] = useState<string | null>(null)
   const [updateSubmitSuccess, setUpdateSubmitSuccess] = useState<string | null>(null)
+  const [incidentHistory, setIncidentHistory] = useState<IncidentHistoryItem[]>([])
+  const [historyLoading, setHistoryLoading] = useState(false)
+  const [historyError, setHistoryError] = useState<string | null>(null)
 
   async function handleLogin(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -115,6 +132,9 @@ function App() {
     setUpdateSubmitting(false)
     setUpdateSubmitError(null)
     setUpdateSubmitSuccess(null)
+    setIncidentHistory([])
+    setHistoryLoading(false)
+    setHistoryError(null)
     setPassword('')
   }
 
@@ -128,6 +148,9 @@ function App() {
     setUpdateMessage('')
     setUpdateSubmitError(null)
     setUpdateSubmitSuccess(null)
+    setIncidentHistory([])
+    setHistoryLoading(true)
+    setHistoryError(null)
 
     try {
       const incident = await getIncidentById(id)
@@ -153,6 +176,17 @@ function App() {
       )
     } finally {
       setUpdatesLoading(false)
+    }
+
+    try {
+      const history = await getIncidentHistory(id)
+      setIncidentHistory(history)
+    } catch (err) {
+      setHistoryError(
+          err instanceof Error ? err.message : 'Unable to load incident history.',
+      )
+    } finally {
+      setHistoryLoading(false)
     }
   }
 
@@ -185,6 +219,17 @@ function App() {
       setUpdateMessage('')
       setUpdateSubmitSuccess('Investigation update added successfully.')
       setUpdatesError(null)
+
+      // The history endpoint also includes investigation updates.
+      try {
+        const history = await getIncidentHistory(selectedIncident.id)
+        setIncidentHistory(history)
+        setHistoryError(null)
+      } catch (err) {
+        setHistoryError(
+            err instanceof Error ? err.message : 'Unable to refresh incident history.',
+        )
+      }
     } catch (err) {
       setUpdateSubmitError(
           err instanceof Error
@@ -400,6 +445,8 @@ function App() {
                   setUpdateMessage('')
                   setUpdateSubmitError(null)
                   setUpdateSubmitSuccess(null)
+                  setIncidentHistory([])
+                  setHistoryError(null)
                 }}
             >
               Back to dashboard
@@ -530,6 +577,65 @@ function App() {
                         <div className="success-banner" role="status">{updateSubmitSuccess}</div>
                     )}
                   </form>
+                </section>
+            )}
+
+            {selectedIncident && (
+                <section className="incident-history-panel" aria-labelledby="incident-history-heading">
+                  <div className="incident-history-heading">
+                    <div>
+                      <h2 id="incident-history-heading">Incident history</h2>
+                      <p>Chronological record of important incident events.</p>
+                    </div>
+                    <span className="incident-history-count">{incidentHistory.length}</span>
+                  </div>
+
+                  {historyLoading ? (
+                      <p className="incident-history-message">Loading incident history…</p>
+                  ) : historyError ? (
+                      <div className="error-banner" role="alert">
+                        <span>{historyError}</span>
+                        <button
+                            type="button"
+                            className="secondary-button"
+                            onClick={async () => {
+                              setHistoryLoading(true)
+                              setHistoryError(null)
+                              try {
+                                const history = await getIncidentHistory(selectedIncident.id)
+                                setIncidentHistory(history)
+                              } catch (err) {
+                                setHistoryError(
+                                    err instanceof Error ? err.message : 'Unable to load incident history.',
+                                )
+                              } finally {
+                                setHistoryLoading(false)
+                              }
+                            }}
+                        >
+                          Retry
+                        </button>
+                      </div>
+                  ) : incidentHistory.length === 0 ? (
+                      <p className="incident-history-empty">No history events are available for this incident yet.</p>
+                  ) : (
+                      <ol className="incident-history-list">
+                        {incidentHistory.map((item, index) => (
+                            <li className="incident-history-item" key={`${item.createdAt}-${item.type}-${index}`}>
+                              <span className="incident-history-marker" aria-hidden="true" />
+                              <div className="incident-history-entry">
+                                <div className="incident-history-meta">
+                                  <strong>{formatHistoryType(item.type)}</strong>
+                                  <time dateTime={item.createdAt}>
+                                    {new Date(item.createdAt).toLocaleString()}
+                                  </time>
+                                </div>
+                                <p>{item.details}</p>
+                              </div>
+                            </li>
+                        ))}
+                      </ol>
+                  )}
                 </section>
             )}
           </section>

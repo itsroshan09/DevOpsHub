@@ -19,6 +19,11 @@ export interface IncidentUpdate {
     message: string
     createdAt: string
 }
+export interface IncidentHistoryItem {
+    type: string
+    details: string
+    createdAt: string
+}
 export interface CreateIncidentRequest {
     title: string
     description: string
@@ -130,7 +135,13 @@ export function login(credentials: LoginRequest): Promise<LoginResponse> {
         false,
     )
 }
-
+export function getIncidentHistory(
+    incidentId: number,
+): Promise<IncidentHistoryItem[]> {
+    return request<IncidentHistoryItem[]>(
+        `/incidents/${incidentId}/history`,
+    )
+}
 export function getIncidents(
     page = 0,
     size = 10,

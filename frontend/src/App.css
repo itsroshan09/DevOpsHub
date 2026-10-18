@@ -1408,3 +1408,174 @@
     width: 100%;
   }
 }
+
+/* =========================================
+   INCIDENT HISTORY TIMELINE
+   ========================================= */
+
+.incident-history-panel {
+  width: 100%;
+  max-width: 1000px;
+  margin: 24px auto 32px;
+  padding: 28px 32px;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
+  box-shadow: 0 4px 18px rgb(15 23 42 / 4%);
+  color: #172033;
+}
+
+.incident-history-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.incident-history-heading h2 {
+  margin: 0 0 6px;
+  color: #111827;
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.incident-history-heading p {
+  margin: 0;
+  color: #6b7280;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.incident-history-count {
+  display: inline-flex;
+  min-width: 32px;
+  height: 32px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: #eef2ff;
+  color: #4338ca;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.incident-history-message,
+.incident-history-empty {
+  margin: 0;
+  color: #6b7280;
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.incident-history-empty {
+  padding: 20px;
+  border: 1px dashed #d1d5db;
+  border-radius: 10px;
+  background: #f9fafb;
+}
+
+.incident-history-list {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.incident-history-item {
+  position: relative;
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  column-gap: 14px;
+  padding-bottom: 24px;
+}
+
+.incident-history-item:last-child {
+  padding-bottom: 0;
+}
+
+/* Timeline connector */
+.incident-history-item:not(:last-child)::before {
+  position: absolute;
+  top: 13px;
+  bottom: -1px;
+  left: 6px;
+  width: 2px;
+  background: #e5e7eb;
+  content: "";
+}
+
+.incident-history-marker {
+  position: relative;
+  z-index: 1;
+  width: 14px;
+  height: 14px;
+  margin-top: 3px;
+  border: 3px solid #c7d2fe;
+  border-radius: 50%;
+  background: #4f46e5;
+}
+
+.incident-history-entry {
+  min-width: 0;
+  padding: 0 0 16px;
+  border-bottom: 1px solid #edf0f4;
+}
+
+.incident-history-item:last-child .incident-history-entry {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+.incident-history-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px 16px;
+  margin-bottom: 8px;
+}
+
+.incident-history-meta strong {
+  color: #1f2937;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.incident-history-meta time {
+  color: #6b7280;
+  font-size: 12px;
+}
+
+.incident-history-entry > p {
+  margin: 0;
+  color: #4b5563;
+  font-size: 14px;
+  line-height: 1.75;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 640px) {
+  .incident-history-panel {
+    margin-top: 18px;
+    padding: 22px 18px;
+    border-radius: 12px;
+  }
+
+  .incident-history-heading h2 {
+    font-size: 18px;
+  }
+
+  .incident-history-item {
+    column-gap: 10px;
+  }
+
+  .incident-history-meta {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 5px;
+  }
+}
