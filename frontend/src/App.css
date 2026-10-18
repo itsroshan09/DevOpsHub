@@ -1067,3 +1067,23 @@
     align-items: flex-start;
   }
 }
+.incident-title-button {
+  appearance: none;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+.incident-title-button:hover {
+  text-decoration: underline;
+}
+
+.incident-title-button:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 3px;
+}

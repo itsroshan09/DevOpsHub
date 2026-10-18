@@ -143,6 +143,10 @@ export function getIncidents(
 
     return request<IncidentPage>(`/incidents?${params.toString()}`)
 }
+
+export function getIncidentById(id: number): Promise<Incident> {
+    return request<Incident>(`/incidents/${id}`)
+}
 export function getDashboardSummary(): Promise<DashboardSummary> {
     return request<DashboardSummary>('/dashboard/summary')
 }

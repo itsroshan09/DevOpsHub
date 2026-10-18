@@ -11,6 +11,7 @@ import {
   saveAccessToken,
   type DashboardSummary,
   type Incident,
+  getIncidentById,
   type IncidentSeverity,
 } from './api/devopsHubApi'
 
@@ -51,6 +52,10 @@ function App() {
   const [totalPages, setTotalPages] = useState(0)
   const [searchTerm, setSearchTerm] = useState('')
 
+  const [selectedIncident, setSelectedIncident] = useState<Incident | null>(null)
+  const [detailLoading, setDetailLoading] = useState(false)
+  const [detailError, setDetailError] = useState<string | null>(null)
+
   async function handleLogin(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setLoginError(null)
@@ -90,7 +95,29 @@ function App() {
     setCreateError(null)
     setCreateSuccess(null)
     setShowCreateForm(false)
+    setSelectedIncident(null)
+    setDetailLoading(false)
+    setDetailError(null)
     setPassword('')
+  }
+
+  async function handleOpenIncident(id: number) {
+    setDetailLoading(true)
+    setDetailError(null)
+    setSelectedIncident(null)
+
+    try {
+      const incident = await getIncidentById(id)
+      setSelectedIncident(incident)
+    } catch (err) {
+      setDetailError(
+          err instanceof Error
+              ? err.message
+              : 'Unable to load incident details.',
+      )
+    } finally {
+      setDetailLoading(false)
+    }
   }
 
   useEffect(() => {
@@ -276,6 +303,59 @@ function App() {
             <p className="login-footnote">
               Access is controlled by your DevOpsHub account permissions.
             </p>
+          </section>
+        </main>
+    )
+  }
+
+
+  if (selectedIncident || detailLoading || detailError) {
+    return (
+        <main className="main-content">
+          <section className="page-content">
+            <button
+                type="button"
+                className="secondary-button"
+                onClick={() => {
+                  setSelectedIncident(null)
+                  setDetailError(null)
+                }}
+            >
+              Back to dashboard
+            </button>
+
+            {detailLoading && <p>Loading incident details...</p>}
+
+            {detailError && (
+                <div role="alert" className="error-banner">
+                  {detailError}
+                </div>
+            )}
+
+            {selectedIncident && (
+                <section className="incident-details">
+                  <p className="incident-id">{formatIncidentId(selectedIncident.id)}</p>
+                  <h1>{selectedIncident.title}</h1>
+                  <p>{selectedIncident.description}</p>
+
+                  <dl>
+                    <dt>Status</dt>
+                    <dd>{formatStatus(selectedIncident.status)}</dd>
+
+                    <dt>Severity</dt>
+                    <dd>{selectedIncident.severity}</dd>
+
+                    <dt>Assignee</dt>
+                    <dd>{formatAssignee(selectedIncident)}</dd>
+
+                    <dt>Created</dt>
+                    <dd>{new Date(selectedIncident.createdAt).toLocaleString()}</dd>
+
+                    <dt>Last updated</dt>
+                    <dd>{new Date(selectedIncident.updatedAt).toLocaleString()}</dd>
+                  </dl>
+                </section>
+            )}
           </section>
         </main>
     )
@@ -617,9 +697,13 @@ function App() {
                       incidents.map((incident) => (
                           <tr key={incident.id}>
                             <td>
-                              <div className="incident-title">
+                              <button
+                                  className="incident-title-button"
+                                  type="button"
+                                  onClick={() => void handleOpenIncident(incident.id)}
+                              >
                                 {incident.title}
-                              </div>
+                              </button>
                               <div className="incident-id">
                                 {formatIncidentId(incident.id)}
                               </div>
@@ -717,3 +801,4 @@ function App() {
 }
 
 export default App
+
