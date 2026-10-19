@@ -913,4 +913,58 @@ class SecurityConfigTest {
         );
     }
 
+    @Test
+    void assignableUsersEndpointShouldReturn401WithoutToken() throws Exception {
+        mockMvc.perform(get("/api/users/assignable"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void adminShouldBeAllowedToListAssignableUsers() throws Exception {
+        String token = "admin-assignable-users-token";
+        mockAuthenticatedUser(51L, UserRole.ADMIN, token);
+
+        when(userRepository.findByRoleInOrderByDisplayNameAsc(
+                List.of(UserRole.ADMIN, UserRole.RESPONDER)
+        )).thenReturn(List.of());
+
+        mockMvc.perform(get("/api/users/assignable")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(content().json("[]"));
+
+        verify(userRepository).findByRoleInOrderByDisplayNameAsc(
+                List.of(UserRole.ADMIN, UserRole.RESPONDER)
+        );
+    }
+
+    @Test
+    void responderShouldBeAllowedToListAssignableUsers() throws Exception {
+        String token = "responder-assignable-users-token";
+        mockAuthenticatedUser(52L, UserRole.RESPONDER, token);
+
+        when(userRepository.findByRoleInOrderByDisplayNameAsc(
+                List.of(UserRole.ADMIN, UserRole.RESPONDER)
+        )).thenReturn(List.of());
+
+        mockMvc.perform(get("/api/users/assignable")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isOk())
+                .andExpect(content().json("[]"));
+    }
+
+    @Test
+    void viewerShouldReceive403WhenListingAssignableUsers()
+            throws Exception {
+        String token = "viewer-assignable-users-token";
+        mockAuthenticatedUser(53L, UserRole.VIEWER, token);
+
+        mockMvc.perform(get("/api/users/assignable")
+                        .header("Authorization", "Bearer " + token))
+                .andExpect(status().isForbidden());
+
+        verify(userRepository, never())
+                .findByRoleInOrderByDisplayNameAsc(anyCollection());
+    }
+
 }

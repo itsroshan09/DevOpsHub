@@ -5,6 +5,8 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.List;
+
 @RestController
 @RequestMapping("/api/users")
 public class UserController {
@@ -20,5 +22,10 @@ public class UserController {
         Long userId = Long.valueOf(authentication.getName());
 
         return userService.getUserById(userId);
+    }
+
+    @GetMapping("/assignable")
+    public List<UserResponse> getAssignableUsers() {
+        return userService.getAssignableUsers();
     }
 }

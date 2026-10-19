@@ -45,6 +45,11 @@ export interface CurrentUser {
     role: UserRole
     createdAt: string
 }
+export type AssignableUser = Pick<
+    CurrentUser,
+    'id' | 'email' | 'displayName' | 'role'
+>
+
 export interface DashboardSummary {
     totalIncidents: number
     openIncidents: number
@@ -148,6 +153,22 @@ export function getIncidentHistory(
 ): Promise<IncidentHistoryItem[]> {
     return request<IncidentHistoryItem[]>(
         `/incidents/${incidentId}/history`,
+    )
+}
+export function getAssignableUsers(): Promise<AssignableUser[]> {
+    return request<AssignableUser[]>('/users/assignable')
+}
+
+export function assignIncident(
+    incidentId: number,
+    userId: number,
+): Promise<Incident> {
+    return request<Incident>(
+        `/incidents/${incidentId}/assignee`,
+        {
+            method: 'PUT',
+            body: JSON.stringify({ userId }),
+        },
     )
 }
 export function getIncidents(

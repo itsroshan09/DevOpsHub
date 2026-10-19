@@ -432,9 +432,10 @@ function App() {
   // Existing rows remain visible while a new result set is being fetched.
   useEffect(() => {
     if (!token) {
-      setIncidentsLoading(false)
+
       return
     }
+
 
     let active = true
 
@@ -484,7 +485,6 @@ function App() {
   // Dashboard summary data does not depend on the search term or current page.
   useEffect(() => {
     if (!token) {
-      setLoading(false)
       return
     }
 

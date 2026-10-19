@@ -109,6 +109,10 @@ public class SecurityConfig {
                                         "/api/dashboard/summary"
                                 ).hasAnyRole("ADMIN", "RESPONDER", "VIEWER")
                         // Everything else still requires authentication
+                                .requestMatchers(
+                                        HttpMethod.GET,
+                                        "/api/users/assignable"
+                                ).hasAnyRole("ADMIN", "RESPONDER")
                         .anyRequest().authenticated()
                 )
 
