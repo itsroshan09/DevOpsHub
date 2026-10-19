@@ -11,6 +11,8 @@ import java.util.Optional;
 
 public interface IncidentRepository extends JpaRepository<Incident, Long> {
 
+
+
     @EntityGraph(attributePaths = "assignee")
     @Query("SELECT i FROM Incident i WHERE i.id = :id")
     Optional<Incident> findWithAssigneeById(@Param("id") Long id);

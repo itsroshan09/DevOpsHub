@@ -123,7 +123,7 @@ class IncidentServiceTest {
         );
         User actor = createTestUser();
 
-        when(incidentRepository.findById(17L)).thenReturn(Optional.of(incident));
+        when(incidentRepository.findWithAssigneeById(17L)).thenReturn(Optional.of(incident));
         when(userRepository.findById(1L)).thenReturn(Optional.of(actor));
         when(incidentRepository.save(incident)).thenReturn(incident);
 
@@ -155,7 +155,7 @@ class IncidentServiceTest {
         incident.transitionTo(IncidentStatus.IN_PROGRESS);
         User actor = createTestUser();
 
-        when(incidentRepository.findById(17L)).thenReturn(Optional.of(incident));
+        when(incidentRepository.findWithAssigneeById(17L)).thenReturn(Optional.of(incident));
         when(userRepository.findById(1L)).thenReturn(Optional.of(actor));
         when(incidentRepository.save(incident)).thenReturn(incident);
 
@@ -177,7 +177,7 @@ class IncidentServiceTest {
                 "Checkout requests are failing.",
                 IncidentSeverity.HIGH
         );
-        when(incidentRepository.findById(17L)).thenReturn(Optional.of(incident));
+        when(incidentRepository.findWithAssigneeById(17L)).thenReturn(Optional.of(incident));
 
         assertThrows(
                 IllegalArgumentException.class,
@@ -195,7 +195,7 @@ class IncidentServiceTest {
 
     @Test
     void transitionStatusShouldThrowWhenIncidentDoesNotExist() {
-        when(incidentRepository.findById(999L)).thenReturn(Optional.empty());
+        when(incidentRepository.findWithAssigneeById(999L)).thenReturn(Optional.empty());
 
         assertThrows(
                 IncidentNotFoundException.class,
@@ -206,7 +206,7 @@ class IncidentServiceTest {
                 )
         );
 
-        verify(incidentRepository).findById(999L);
+        verify(incidentRepository).findWithAssigneeById(999L);
         verify(incidentRepository, never()).save(any(Incident.class));
         verify(auditEventRepository, never()).save(any(AuditEvent.class));
     }
@@ -503,7 +503,7 @@ class IncidentServiceTest {
 
         User actor = createTestUser();
 
-        when(incidentRepository.findById(17L)).thenReturn(Optional.of(incident));
+        when(incidentRepository.findWithAssigneeById(17L)).thenReturn(Optional.of(incident));
         when(userRepository.findById(1L)).thenReturn(Optional.of(actor));
         when(incidentRepository.save(incident)).thenReturn(incident);
 
@@ -536,7 +536,7 @@ class IncidentServiceTest {
         incident.transitionTo(IncidentStatus.IN_PROGRESS);
         incident.transitionTo(IncidentStatus.RESOLVED);
 
-        when(incidentRepository.findById(17L)).thenReturn(Optional.of(incident));
+        when(incidentRepository.findWithAssigneeById(17L)).thenReturn(Optional.of(incident));
 
         assertThrows(
                 IllegalArgumentException.class,

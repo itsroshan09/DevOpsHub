@@ -100,8 +100,10 @@ public class IncidentService {
             IncidentStatus newStatus,
             Long actorId
     ) {
-        Incident incident = incidentRepository.findById(id)
+
+        Incident incident = incidentRepository.findWithAssigneeById(id)
                 .orElseThrow(() -> new IncidentNotFoundException(id));
+
 
         IncidentStatus currentStatus = incident.getStatus();
 
