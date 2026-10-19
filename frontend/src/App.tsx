@@ -1,4 +1,3 @@
-
 import { useEffect, useState, type FormEvent } from 'react'
 import './App.css'
 import {
@@ -13,6 +12,9 @@ import {
   login,
   getCurrentUser,
   transitionIncident,
+  assignIncident,
+  getAssignableUsers,
+  type AssignableUser,
   type CurrentUser,
   type IncidentStatus,
   saveAccessToken,
@@ -72,8 +74,10 @@ function App() {
   const [currentPage, setCurrentPage] = useState(0)
   const [totalPages, setTotalPages] = useState(0)
   const [searchTerm, setSearchTerm] = useState('')
-
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('')
   const [selectedIncident, setSelectedIncident] = useState<Incident | null>(null)
+  const [incidentsLoading, setIncidentsLoading] = useState(false)
+  const [incidentError, setIncidentError] = useState<string | null>(null)
   const [detailLoading, setDetailLoading] = useState(false)
   const [detailError, setDetailError] = useState<string | null>(null)
   const [incidentUpdates, setIncidentUpdates] = useState<IncidentUpdate[]>([])
@@ -93,6 +97,13 @@ function App() {
   const [transitionLoading, setTransitionLoading] = useState(false)
   const [transitionError, setTransitionError] = useState<string | null>(null)
   const [transitionSuccess, setTransitionSuccess] = useState<string | null>(null)
+
+  const [assignableUsers, setAssignableUsers] = useState<AssignableUser[]>([])
+  const [assigneeSelection, setAssigneeSelection] = useState('')
+  const [assigneesLoading, setAssigneesLoading] = useState(false)
+  const [assignmentLoading, setAssignmentLoading] = useState(false)
+  const [assignmentError, setAssignmentError] = useState<string | null>(null)
+  const [assignmentSuccess, setAssignmentSuccess] = useState<string | null>(null)
 
   async function handleLogin(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -129,7 +140,10 @@ function App() {
     setToken(null)
     setIncidents([])
     setSummary(null)
+    setLoading(false)
     setDashboardError(null)
+    setIncidentsLoading(false)
+    setIncidentError(null)
     setCreateError(null)
     setCreateSuccess(null)
     setShowCreateForm(false)
@@ -152,6 +166,12 @@ function App() {
     setTransitionLoading(false)
     setTransitionError(null)
     setTransitionSuccess(null)
+    setAssignableUsers([])
+    setAssigneeSelection('')
+    setAssigneesLoading(false)
+    setAssignmentLoading(false)
+    setAssignmentError(null)
+    setAssignmentSuccess(null)
   }
   async function handleIncidentTransition(status: IncidentStatus) {
     if (!selectedIncident || transitionLoading) {
@@ -201,9 +221,70 @@ function App() {
       setTransitionLoading(false)
     }
   }
+  async function handleAssignIncident() {
+    if (!selectedIncident || !assigneeSelection || assignmentLoading) {
+      return
+    }
+
+    const userId = Number(assigneeSelection)
+
+    if (!Number.isInteger(userId) || userId <= 0) {
+      setAssignmentError('Select a valid assignee.')
+      return
+    }
+
+    setAssignmentLoading(true)
+    setAssignmentError(null)
+    setAssignmentSuccess(null)
+
+    try {
+      const updatedIncident = await assignIncident(selectedIncident.id, userId)
+
+      setSelectedIncident(updatedIncident)
+      setIncidents((current) =>
+          current.map((incident) =>
+              incident.id === updatedIncident.id ? updatedIncident : incident,
+          ),
+      )
+
+      setAssignmentSuccess('Incident assigned successfully.')
+
+      try {
+        const history = await getIncidentHistory(updatedIncident.id)
+        setIncidentHistory(history)
+        setHistoryError(null)
+      } catch (err) {
+        setHistoryError(
+            err instanceof Error
+                ? err.message
+                : 'Incident was assigned, but history could not be refreshed.',
+        )
+      }
+    } catch (err) {
+      setAssignmentError(
+          err instanceof Error ? err.message : 'Unable to assign incident.',
+      )
+    } finally {
+      setAssignmentLoading(false)
+    }
+  }
   async function handleOpenIncident(id: number) {
     setDetailLoading(true)
     setDetailError(null)
+    setAssignmentError(null)
+    setAssignmentSuccess(null)
+    setAssigneeSelection('')
+
+    if (
+        currentUser &&
+        (currentUser.role === 'ADMIN' || currentUser.role === 'RESPONDER')
+    ) {
+      void loadAssignableUsers()
+    } else {
+      setAssignableUsers([])
+      setAssigneesLoading(false)
+    }
+
     setSelectedIncident(null)
     setIncidentUpdates([])
     setUpdatesLoading(true)
@@ -303,7 +384,15 @@ function App() {
       setUpdateSubmitting(false)
     }
   }
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm)
+    }, 300)
 
+    return () => {
+      window.clearTimeout(timeoutId)
+    }
+  }, [searchTerm])
   useEffect(() => {
     if (!token) {
       return
@@ -339,26 +428,76 @@ function App() {
     }
   }, [token])
 
+  // Load only the incident page when pagination or the debounced search changes.
+  // Existing rows remain visible while a new result set is being fetched.
   useEffect(() => {
     if (!token) {
+      setIncidentsLoading(false)
       return
     }
 
     let active = true
 
-    async function loadDashboard() {
-      setLoading(true)
-      setDashboardError(null)
+    async function loadIncidentPage() {
+      setIncidentsLoading(true)
+      setIncidentError(null)
 
       try {
-        const [incidentPage, dashboardSummary] = await Promise.all([
-          getIncidents(currentPage, 10, searchTerm),
-          getDashboardSummary(),
-        ])
+        const incidentPage = await getIncidents(
+            currentPage,
+            10,
+            debouncedSearchTerm,
+        )
 
         if (active) {
           setIncidents(incidentPage.content)
           setTotalPages(incidentPage.totalPages)
+        }
+      } catch (err) {
+        if (active) {
+          const message =
+              err instanceof Error
+                  ? err.message
+                  : 'Unable to load incidents.'
+
+          setIncidentError(message)
+
+          if (message.toLowerCase().includes('session is missing or expired')) {
+            clearAccessToken()
+            setToken(null)
+          }
+        }
+      } finally {
+        if (active) {
+          setIncidentsLoading(false)
+        }
+      }
+    }
+
+    void loadIncidentPage()
+
+    return () => {
+      active = false
+    }
+  }, [token, currentPage, debouncedSearchTerm])
+
+  // Dashboard summary data does not depend on the search term or current page.
+  useEffect(() => {
+    if (!token) {
+      setLoading(false)
+      return
+    }
+
+    let active = true
+
+    async function loadDashboardSummary() {
+      setLoading(true)
+      setDashboardError(null)
+
+      try {
+        const dashboardSummary = await getDashboardSummary()
+
+        if (active) {
           setSummary(dashboardSummary)
         }
       } catch (err) {
@@ -366,13 +505,11 @@ function App() {
           const message =
               err instanceof Error
                   ? err.message
-                  : 'Unable to load dashboard data.'
+                  : 'Unable to load dashboard summary.'
 
           setDashboardError(message)
 
-          if (
-              message.toLowerCase().includes('session is missing or expired')
-          ) {
+          if (message.toLowerCase().includes('session is missing or expired')) {
             clearAccessToken()
             setToken(null)
           }
@@ -384,13 +521,31 @@ function App() {
       }
     }
 
-    void loadDashboard()
+    void loadDashboardSummary()
 
     return () => {
       active = false
     }
-  }, [token, currentPage, searchTerm])
+  }, [token])
 
+  async function loadAssignableUsers() {
+    setAssigneesLoading(true)
+    setAssignmentError(null)
+
+    try {
+      const users = await getAssignableUsers()
+      setAssignableUsers(users)
+    } catch (err) {
+      setAssignableUsers([])
+      setAssignmentError(
+          err instanceof Error
+              ? err.message
+              : 'Unable to load eligible assignees.',
+      )
+    } finally {
+      setAssigneesLoading(false)
+    }
+  }
   async function handleCreateIncident(
       event: FormEvent<HTMLFormElement>,
   ) {
@@ -640,6 +795,77 @@ function App() {
                 </section>
             )}
 
+            {selectedIncident &&
+                currentUser &&
+                (currentUser.role === 'ADMIN' || currentUser.role === 'RESPONDER') && (
+                    <section className="incident-transition-panel" aria-labelledby="assignment-heading">
+                      <h2 id="assignment-heading">Assign incident</h2>
+
+                      {assigneesLoading ? (
+                          <p>Loading eligible assignees…</p>
+                      ) : assignmentError && assignableUsers.length === 0 ? (
+                          <p>Eligible assignees could not be loaded. See the error below and try again.</p>
+                      ) : assignableUsers.length === 0 ? (
+                          <p>No eligible assignees are available.</p>
+                      ) : (
+                          <form
+                              onSubmit={(event) => {
+                                event.preventDefault()
+                                void handleAssignIncident()
+                              }}
+                          >
+                            <label htmlFor="incident-assignee">Assignee</label>
+                            <select
+                                id="incident-assignee"
+                                value={assigneeSelection}
+                                onChange={(event) => {
+                                  setAssigneeSelection(event.target.value)
+                                  setAssignmentError(null)
+                                  setAssignmentSuccess(null)
+                                }}
+                                disabled={assignmentLoading}
+                                required
+                            >
+                              <option value="">Select an assignee</option>
+                              {assignableUsers.map((user) => (
+                                  <option key={user.id} value={user.id}>
+                                    {user.displayName} ({user.role}) — {user.email}
+                                  </option>
+                              ))}
+                            </select>
+
+                            <button
+                                type="submit"
+                                className="primary-button"
+                                disabled={assignmentLoading || !assigneeSelection}
+                            >
+                              {assignmentLoading ? 'Assigning…' : 'Assign incident'}
+                            </button>
+                          </form>
+                      )}
+
+                      {assignmentError && (
+                          <div className="error-banner" role="alert">
+                            <span>{assignmentError}</span>
+                            {assignableUsers.length === 0 && !assigneesLoading && (
+                                <button
+                                    type="button"
+                                    className="secondary-button"
+                                    onClick={() => void loadAssignableUsers()}
+                                >
+                                  Retry loading assignees
+                                </button>
+                            )}
+                          </div>
+                      )}
+
+                      {assignmentSuccess && (
+                          <div className="success-banner" role="status">
+                            {assignmentSuccess}
+                          </div>
+                      )}
+                    </section>
+                )}
             {selectedIncident && (
                 <section className="incident-updates-panel" aria-labelledby="incident-updates-heading">
                   <div className="incident-updates-heading">
@@ -659,6 +885,9 @@ function App() {
                             type="button"
                             className="secondary-button"
                             onClick={async () => {
+                              if (!selectedIncident) {
+                                return
+                              }
                               setUpdatesLoading(true)
                               setUpdatesError(null)
                               try {
@@ -1102,6 +1331,13 @@ function App() {
                 </button>
               </div>
 
+              {incidentError && (
+                  <div className="error-banner" role="alert">
+                    <strong>Incident list notice</strong>
+                    <span>{incidentError}</span>
+                  </div>
+              )}
+
               <div className="table-scroll">
                 <table className="incident-table">
                   <thead>
@@ -1116,15 +1352,13 @@ function App() {
                   </thead>
 
                   <tbody>
-                  {loading ? (
+                  {incidentsLoading && incidents.length === 0 ? (
                       <tr>
                         <td colSpan={6}>Loading incidents…</td>
                       </tr>
-                  ) : dashboardError ? (
+                  ) : incidentError && incidents.length === 0 ? (
                       <tr>
-                        <td colSpan={6}>
-                          Dashboard data may be incomplete. Check the notice above.
-                        </td>
+                        <td colSpan={6}>Unable to load incidents. See the error notice above.</td>
                       </tr>
                   ) : incidents.length === 0 ? (
                       <tr>
@@ -1196,10 +1430,10 @@ function App() {
               </div>
               <div className="table-footer">
   <span>
-    {loading
-        ? 'Loading incidents…'
-        : dashboardError
-            ? 'Dashboard data may be incomplete'
+    {incidentsLoading
+        ? `Showing ${incidents.length} incidents — updating results…`
+        : incidentError
+            ? 'Incident list could not be refreshed'
             : `Showing ${incidents.length} of ${summary?.totalIncidents ?? '—'} incidents`}
   </span>
 
@@ -1210,7 +1444,7 @@ function App() {
                 <button
                     className="pagination-button"
                     type="button"
-                    disabled={loading || currentPage === 0}
+                    disabled={incidentsLoading || currentPage === 0}
                     onClick={() => setCurrentPage(page => Math.max(0, page - 1))}
                 >
                   Previous
@@ -1219,7 +1453,7 @@ function App() {
                 <button
                     className="pagination-button"
                     type="button"
-                    disabled={loading || currentPage + 1 >= totalPages}
+                    disabled={incidentsLoading || currentPage + 1 >= totalPages}
                     onClick={() => setCurrentPage(page => page + 1)}
                 >
                   Next
@@ -1238,4 +1472,3 @@ function App() {
 }
 
 export default App
-
