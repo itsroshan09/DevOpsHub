@@ -11,7 +11,14 @@ import org.springframework.context.annotation.Profile;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.util.Locale;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 
+
+@ConditionalOnProperty(
+        name = "devopshub.local-responder.enabled",
+        havingValue = "true",
+        matchIfMissing = true
+)
 @Configuration
 @Profile("local")
 public class LocalResponderInitializer {
