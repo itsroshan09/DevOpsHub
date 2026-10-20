@@ -5,6 +5,7 @@ import com.roshan.devopshub.audit.AuditEventRepository;
 import com.roshan.devopshub.user.User;
 import com.roshan.devopshub.user.UserNotFoundException;
 import com.roshan.devopshub.user.UserRepository;
+import com.roshan.devopshub.service.ServiceRepository;
 import com.roshan.devopshub.user.UserRole;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -40,6 +41,9 @@ class IncidentServiceTest {
     @Mock
     private UserRepository userRepository;
 
+    @Mock
+    private ServiceRepository serviceRepository;
+
     private IncidentService incidentService;
 
     @BeforeEach
@@ -48,7 +52,8 @@ class IncidentServiceTest {
                 incidentRepository,
                 incidentUpdateRepository,
                 auditEventRepository,
-                userRepository
+                userRepository,
+                serviceRepository
         );
     }
 
@@ -68,7 +73,8 @@ class IncidentServiceTest {
                 1L,
                 "API gateway returning 500 errors",
                 "Checkout requests are failing intermittently.",
-                IncidentSeverity.HIGH
+                IncidentSeverity.HIGH,
+                null
         );
 
         assertNotNull(result);
@@ -405,7 +411,8 @@ class IncidentServiceTest {
                 1L,
                 "API gateway failure",
                 "Requests are failing.",
-                IncidentSeverity.HIGH
+                IncidentSeverity.HIGH,
+                null
         );
 
         ArgumentCaptor<AuditEvent> captor = ArgumentCaptor.forClass(AuditEvent.class);
@@ -432,7 +439,7 @@ class IncidentServiceTest {
         );
         User actor = createTestUser();
 
-        when(incidentRepository.findById(1L)).thenReturn(Optional.of(incident));
+        when(incidentRepository.findWithAssigneeById(1L)).thenReturn(Optional.of(incident));
         when(userRepository.findById(2L)).thenReturn(Optional.of(assignee));
         when(userRepository.findById(1L)).thenReturn(Optional.of(actor));
         when(incidentRepository.save(any(Incident.class)))
@@ -454,7 +461,7 @@ class IncidentServiceTest {
 
     @Test
     void assignIncidentShouldThrowWhenUserDoesNotExist() {
-        when(incidentRepository.findById(1L))
+        when(incidentRepository.findWithAssigneeById(1L))
                 .thenReturn(Optional.of(new Incident(
                         "API gateway failure",
                         "Requests are failing.",
@@ -473,7 +480,7 @@ class IncidentServiceTest {
 
     @Test
     void assignIncidentShouldThrowWhenIncidentDoesNotExist() {
-        when(incidentRepository.findById(1L)).thenReturn(Optional.empty());
+        when(incidentRepository.findWithAssigneeById(1L)).thenReturn(Optional.empty());
 
         assertThrows(
                 IncidentNotFoundException.class,
@@ -560,7 +567,7 @@ class IncidentServiceTest {
         );
         User actor = createTestUser();
 
-        when(incidentRepository.findById(17L)).thenReturn(Optional.of(incident));
+        when(incidentRepository.findWithAssigneeById(17L)).thenReturn(Optional.of(incident));
         when(userRepository.findById(1L)).thenReturn(Optional.of(actor));
         when(incidentRepository.save(incident)).thenReturn(incident);
 
@@ -585,7 +592,7 @@ class IncidentServiceTest {
 
     @Test
     void changeSeverityShouldThrowWhenIncidentDoesNotExist() {
-        when(incidentRepository.findById(999L)).thenReturn(Optional.empty());
+        when(incidentRepository.findWithAssigneeById(999L)).thenReturn(Optional.empty());
 
         assertThrows(
                 IncidentNotFoundException.class,

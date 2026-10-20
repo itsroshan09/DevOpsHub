@@ -14,7 +14,9 @@ public record CreateIncidentRequest(
         String description,
 
         @NotNull(message = "Severity is required")
-        IncidentSeverity severity
+        IncidentSeverity severity,
+
+        Long serviceId
 
 ) {
 }

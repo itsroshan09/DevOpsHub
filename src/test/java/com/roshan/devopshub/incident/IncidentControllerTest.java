@@ -24,11 +24,7 @@ import org.springframework.test.web.servlet.request.RequestPostProcessor;
 import java.time.Instant;
 import java.util.List;
 
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -122,7 +118,8 @@ class IncidentControllerTest {
                 anyLong(),
                 anyString(),
                 anyString(),
-                any(IncidentSeverity.class)
+                any(IncidentSeverity.class),
+                nullable(Long.class)
         )).thenReturn(incident);
 
         String request = """
@@ -147,7 +144,8 @@ class IncidentControllerTest {
                 1L,
                 "API gateway returning 500 errors",
                 "Checkout requests are failing intermittently.",
-                IncidentSeverity.HIGH
+                IncidentSeverity.HIGH,
+                null
         );
     }
 

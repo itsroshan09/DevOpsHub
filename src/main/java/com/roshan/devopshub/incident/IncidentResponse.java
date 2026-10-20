@@ -1,3 +1,4 @@
+
 package com.roshan.devopshub.incident;
 
 import java.time.Instant;
@@ -11,7 +12,9 @@ public record IncidentResponse(
         Instant createdAt,
         Instant updatedAt,
         Long assigneeId,
-        String assigneeEmail
+        String assigneeEmail,
+        Long serviceId,
+        String serviceName
 ) {
     public static IncidentResponse from(Incident incident) {
         return new IncidentResponse(
@@ -27,8 +30,13 @@ public record IncidentResponse(
                         : incident.getAssignee().getId(),
                 incident.getAssignee() == null
                         ? null
-                        : incident.getAssignee().getEmail()
-
+                        : incident.getAssignee().getEmail(),
+                incident.getService() == null
+                        ? null
+                        : incident.getService().getId(),
+                incident.getService() == null
+                        ? null
+                        : incident.getService().getName()
         );
     }
 }

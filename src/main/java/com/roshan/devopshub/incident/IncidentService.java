@@ -3,36 +3,41 @@ package com.roshan.devopshub.incident;
 
 import com.roshan.devopshub.audit.AuditEvent;
 import com.roshan.devopshub.audit.AuditEventRepository;
+import com.roshan.devopshub.service.Service;
+import com.roshan.devopshub.service.ServiceNotFoundException;
+import com.roshan.devopshub.service.ServiceRepository;
 import com.roshan.devopshub.user.User;
 import com.roshan.devopshub.user.UserNotFoundException;
 import com.roshan.devopshub.user.UserRepository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 
-@Service
+@org.springframework.stereotype.Service
 public class IncidentService {
 
     private final IncidentRepository incidentRepository;
     private final IncidentUpdateRepository incidentUpdateRepository;
     private final AuditEventRepository auditEventRepository;
     private final UserRepository userRepository;
+    private final ServiceRepository serviceRepository;
 
     public IncidentService(
             IncidentRepository incidentRepository,
             IncidentUpdateRepository incidentUpdateRepository,
             AuditEventRepository auditEventRepository,
-            UserRepository userRepository
+            UserRepository userRepository,
+            ServiceRepository serviceRepository
     ) {
         this.incidentRepository = incidentRepository;
         this.incidentUpdateRepository = incidentUpdateRepository;
         this.auditEventRepository = auditEventRepository;
         this.userRepository = userRepository;
+        this.serviceRepository = serviceRepository;
     }
 
     @Transactional
@@ -40,11 +45,22 @@ public class IncidentService {
             Long actorId,
             String title,
             String description,
-            IncidentSeverity severity
+            IncidentSeverity severity,
+            Long serviceId
     ) {
         User actor = findUser(actorId);
 
         Incident incident = new Incident(title, description, severity);
+
+        if (serviceId != null) {
+            Service service = serviceRepository.findById(serviceId)
+                    .orElseThrow(
+                            () -> new ServiceNotFoundException(serviceId)
+                    );
+
+            incident.associateWithService(service);
+        }
+
         Incident savedIncident = incidentRepository.save(incident);
 
         AuditEvent auditEvent = new AuditEvent(
@@ -64,6 +80,7 @@ public class IncidentService {
         return incidentRepository.findWithAssigneeById(id)
                 .orElseThrow(() -> new IncidentNotFoundException(id));
     }
+
     @Transactional(readOnly = true)
     public Page<Incident> getIncidents(
             IncidentStatus status,
@@ -72,6 +89,7 @@ public class IncidentService {
     ) {
         return getIncidents(status, severity, null, pageable);
     }
+
     @Transactional(readOnly = true)
     public Page<Incident> getIncidents(Pageable pageable) {
         return incidentRepository.findAll(pageable);
@@ -100,10 +118,8 @@ public class IncidentService {
             IncidentStatus newStatus,
             Long actorId
     ) {
-
         Incident incident = incidentRepository.findWithAssigneeById(id)
                 .orElseThrow(() -> new IncidentNotFoundException(id));
-
 
         IncidentStatus currentStatus = incident.getStatus();
 
@@ -145,8 +161,10 @@ public class IncidentService {
             IncidentSeverity newSeverity,
             Long actorId
     ) {
-        Incident incident = incidentRepository.findById(incidentId)
-                .orElseThrow(() -> new IncidentNotFoundException(incidentId));
+        Incident incident = incidentRepository.findWithAssigneeById(incidentId)
+                .orElseThrow(
+                        () -> new IncidentNotFoundException(incidentId)
+                );
 
         User actor = findUser(actorId);
         IncidentSeverity previousSeverity = incident.getSeverity();
@@ -173,7 +191,9 @@ public class IncidentService {
             Long actorId
     ) {
         Incident incident = incidentRepository.findById(incidentId)
-                .orElseThrow(() -> new IncidentNotFoundException(incidentId));
+                .orElseThrow(
+                        () -> new IncidentNotFoundException(incidentId)
+                );
 
         User actor = findUser(actorId);
 
@@ -192,23 +212,25 @@ public class IncidentService {
         return savedUpdate;
     }
 
-
     @Transactional(readOnly = true)
     public List<IncidentUpdate> getIncidentUpdates(Long incidentId) {
         incidentRepository.findById(incidentId)
-                .orElseThrow(() -> new IncidentNotFoundException(incidentId));
+                .orElseThrow(
+                        () -> new IncidentNotFoundException(incidentId)
+                );
 
         return incidentUpdateRepository
                 .findByIncidentIdOrderByCreatedAtAsc(incidentId);
     }
-
 
     @Transactional(readOnly = true)
     public List<IncidentHistoryItemResponse> getIncidentHistory(
             Long incidentId
     ) {
         incidentRepository.findById(incidentId)
-                .orElseThrow(() -> new IncidentNotFoundException(incidentId));
+                .orElseThrow(
+                        () -> new IncidentNotFoundException(incidentId)
+                );
 
         List<IncidentHistoryItemResponse> history = new ArrayList<>();
 
@@ -223,7 +245,7 @@ public class IncidentService {
                         )
                 ));
 
-        // Add audit events, excluding investigation updates already added above.
+        // Avoid duplicating investigation updates already added above.
         auditEventRepository
                 .findByIncidentIdOrderByCreatedAtAscIdAsc(incidentId)
                 .stream()
@@ -251,15 +273,16 @@ public class IncidentService {
         return history;
     }
 
-
     @Transactional
     public Incident assignIncident(
             Long incidentId,
             Long userId,
             Long actorId
     ) {
-        Incident incident = incidentRepository.findById(incidentId)
-                .orElseThrow(() -> new IncidentNotFoundException(incidentId));
+        Incident incident = incidentRepository.findWithAssigneeById(incidentId)
+                .orElseThrow(
+                        () -> new IncidentNotFoundException(incidentId)
+                );
 
         User newAssignee = findUser(userId);
         User actor = findUser(actorId);
@@ -287,6 +310,8 @@ public class IncidentService {
 
     private User findUser(Long userId) {
         return userRepository.findById(userId)
-                .orElseThrow(() -> new UserNotFoundException(userId));
+                .orElseThrow(
+                        () -> new UserNotFoundException(userId)
+                );
     }
 }

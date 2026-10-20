@@ -1594,3 +1594,50 @@
 .incident-transition-panel .secondary-button {
   margin-top: 0.5rem;
 }
+/* Incident details layout */
+.incident-detail-layout {
+  display: grid;
+  grid-template-columns: minmax(200px, 0.8fr) minmax(0, 1.6fr);
+  gap: 24px;
+  align-items: start;
+  margin-top: 24px;
+}
+
+.incident-detail-layout > * {
+  min-width: 0;
+}
+
+.incident-metadata-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 24px;
+  margin: 0;
+  min-width: 0;
+}
+
+.incident-metadata-item {
+  min-width: 0;
+  padding: 16px 0;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.incident-metadata-item dt {
+  margin-bottom: 8px;
+  color: #64748b;
+  font-weight: 600;
+}
+
+.incident-metadata-item dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 700px) {
+  .incident-detail-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .incident-metadata-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

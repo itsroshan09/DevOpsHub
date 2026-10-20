@@ -2,7 +2,7 @@ package com.roshan.devopshub.incident;
 
 import jakarta.persistence.*;
 import java.time.Instant;
-
+import com.roshan.devopshub.service.Service;
 @Entity
 @Table(name = "incidents")
 public class Incident {
@@ -31,7 +31,12 @@ public class Incident {
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 
-
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(
+            name = "service_id",
+            foreignKey = @ForeignKey(name = "fk_incidents_service")
+    )
+    private Service service;
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(
             name = "assigned_to",
@@ -108,5 +113,11 @@ public class Incident {
     public void assignTo(com.roshan.devopshub.user.User assignee) {
         this.assignee = assignee;
     }
+    public Service getService() {
+        return service;
+    }
 
+    public void associateWithService(Service service) {
+        this.service = service;
+    }
 }

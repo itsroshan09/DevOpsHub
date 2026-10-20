@@ -13,11 +13,11 @@ public interface IncidentRepository extends JpaRepository<Incident, Long> {
 
 
 
-    @EntityGraph(attributePaths = "assignee")
+    @EntityGraph(attributePaths = {"assignee", "service"})
     @Query("SELECT i FROM Incident i WHERE i.id = :id")
     Optional<Incident> findWithAssigneeById(@Param("id") Long id);
 
-    @EntityGraph(attributePaths = "assignee")
+    @EntityGraph(attributePaths = {"assignee", "service"})
     @Query("""
     SELECT i FROM Incident i
     WHERE (:status IS NULL OR i.status = :status)

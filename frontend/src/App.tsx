@@ -11,6 +11,7 @@ import {
   addIncidentUpdate,
   login,
   getCurrentUser,
+  getServices,
   transitionIncident,
   assignIncident,
   getAssignableUsers,
@@ -24,6 +25,7 @@ import {
   type IncidentHistoryItem,
   getIncidentById,
   type IncidentSeverity,
+  type Service,
 } from './api/devopsHubApi'
 
 function formatStatus(status: Incident['status']): string {
@@ -68,16 +70,18 @@ function App() {
   const [createDescription, setCreateDescription] = useState('')
   const [createSeverity, setCreateSeverity] =
       useState<IncidentSeverity>('MEDIUM')
+  const [services, setServices] = useState<Service[]>([])
+  const [servicesLoading, setServicesLoading] = useState(false)
+  const [servicesError, setServicesError] = useState<string | null>(null)
+  const [createServiceId, setCreateServiceId] = useState('')
   const [createLoading, setCreateLoading] = useState(false)
   const [createError, setCreateError] = useState<string | null>(null)
   const [createSuccess, setCreateSuccess] = useState<string | null>(null)
   const [currentPage, setCurrentPage] = useState(0)
   const [totalPages, setTotalPages] = useState(0)
   const [searchTerm, setSearchTerm] = useState('')
-  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('')
+
   const [selectedIncident, setSelectedIncident] = useState<Incident | null>(null)
-  const [incidentsLoading, setIncidentsLoading] = useState(false)
-  const [incidentError, setIncidentError] = useState<string | null>(null)
   const [detailLoading, setDetailLoading] = useState(false)
   const [detailError, setDetailError] = useState<string | null>(null)
   const [incidentUpdates, setIncidentUpdates] = useState<IncidentUpdate[]>([])
@@ -140,12 +144,12 @@ function App() {
     setToken(null)
     setIncidents([])
     setSummary(null)
-    setLoading(false)
     setDashboardError(null)
-    setIncidentsLoading(false)
-    setIncidentError(null)
     setCreateError(null)
     setCreateSuccess(null)
+    setCreateServiceId('')
+    setServices([])
+    setServicesError(null)
     setShowCreateForm(false)
     setSelectedIncident(null)
     setDetailLoading(false)
@@ -384,15 +388,7 @@ function App() {
       setUpdateSubmitting(false)
     }
   }
-  useEffect(() => {
-    const timeoutId = window.setTimeout(() => {
-      setDebouncedSearchTerm(searchTerm)
-    }, 300)
 
-    return () => {
-      window.clearTimeout(timeoutId)
-    }
-  }, [searchTerm])
   useEffect(() => {
     if (!token) {
       return
@@ -428,61 +424,48 @@ function App() {
     }
   }, [token])
 
-  // Load only the incident page when pagination or the debounced search changes.
-  // Existing rows remain visible while a new result set is being fetched.
+
   useEffect(() => {
     if (!token) {
-
       return
     }
 
-
     let active = true
 
-    async function loadIncidentPage() {
-      setIncidentsLoading(true)
-      setIncidentError(null)
+    async function loadServiceRegistry() {
+      setServicesLoading(true)
+      setServicesError(null)
 
       try {
-        const incidentPage = await getIncidents(
-            currentPage,
-            10,
-            debouncedSearchTerm,
-        )
+        const result = await getServices()
 
         if (active) {
-          setIncidents(incidentPage.content)
-          setTotalPages(incidentPage.totalPages)
+          setServices(result)
         }
       } catch (err) {
         if (active) {
-          const message =
+          setServices([])
+          setServicesError(
               err instanceof Error
                   ? err.message
-                  : 'Unable to load incidents.'
-
-          setIncidentError(message)
-
-          if (message.toLowerCase().includes('session is missing or expired')) {
-            clearAccessToken()
-            setToken(null)
-          }
+                  : 'Unable to load services.',
+          )
         }
       } finally {
         if (active) {
-          setIncidentsLoading(false)
+          setServicesLoading(false)
         }
       }
     }
 
-    void loadIncidentPage()
+    void loadServiceRegistry()
 
     return () => {
       active = false
     }
-  }, [token, currentPage, debouncedSearchTerm])
+  }, [token])
 
-  // Dashboard summary data does not depend on the search term or current page.
+
   useEffect(() => {
     if (!token) {
       return
@@ -490,14 +473,19 @@ function App() {
 
     let active = true
 
-    async function loadDashboardSummary() {
+    async function loadDashboard() {
       setLoading(true)
       setDashboardError(null)
 
       try {
-        const dashboardSummary = await getDashboardSummary()
+        const [incidentPage, dashboardSummary] = await Promise.all([
+          getIncidents(currentPage, 10, searchTerm),
+          getDashboardSummary(),
+        ])
 
         if (active) {
+          setIncidents(incidentPage.content)
+          setTotalPages(incidentPage.totalPages)
           setSummary(dashboardSummary)
         }
       } catch (err) {
@@ -505,11 +493,13 @@ function App() {
           const message =
               err instanceof Error
                   ? err.message
-                  : 'Unable to load dashboard summary.'
+                  : 'Unable to load dashboard data.'
 
           setDashboardError(message)
 
-          if (message.toLowerCase().includes('session is missing or expired')) {
+          if (
+              message.toLowerCase().includes('session is missing or expired')
+          ) {
             clearAccessToken()
             setToken(null)
           }
@@ -521,12 +511,12 @@ function App() {
       }
     }
 
-    void loadDashboardSummary()
+    void loadDashboard()
 
     return () => {
       active = false
     }
-  }, [token])
+  }, [token, currentPage, searchTerm])
 
   async function loadAssignableUsers() {
     setAssigneesLoading(true)
@@ -573,12 +563,14 @@ function App() {
         title,
         description,
         severity: createSeverity,
+        ...(createServiceId ? { serviceId: Number(createServiceId) } : {}),
       })
 
       // Creation succeeded. Close the form and confirm the saved incident.
       setCreateTitle('')
       setCreateDescription('')
       setCreateSeverity('MEDIUM')
+      setCreateServiceId('')
       setShowCreateForm(false)
       setCreateSuccess(
           `Incident ${formatIncidentId(created.id)} created successfully.`,
@@ -719,7 +711,7 @@ function App() {
                   <h1>{selectedIncident.title}</h1>
                   <p>{selectedIncident.description}</p>
 
-                  <dl>
+                  <div className="incident-detail-layout">
                     {currentUser &&
                         (currentUser.role === 'ADMIN' || currentUser.role === 'RESPONDER') && (
                             <section className="incident-transition-panel" aria-labelledby="transition-heading">
@@ -777,21 +769,39 @@ function App() {
                               {userLoading && <p>Checking permissions…</p>}
                             </section>
                         )}
-                    <dt>Status</dt>
-                    <dd>{formatStatus(selectedIncident.status)}</dd>
 
-                    <dt>Severity</dt>
-                    <dd>{selectedIncident.severity}</dd>
+                    <dl className="incident-metadata-grid">
+                      <div className="incident-metadata-item">
+                        <dt>Status</dt>
+                        <dd>{formatStatus(selectedIncident.status)}</dd>
+                      </div>
 
-                    <dt>Assignee</dt>
-                    <dd>{formatAssignee(selectedIncident)}</dd>
+                      <div className="incident-metadata-item">
+                        <dt>Severity</dt>
+                        <dd>{selectedIncident.severity}</dd>
+                      </div>
 
-                    <dt>Created</dt>
-                    <dd>{new Date(selectedIncident.createdAt).toLocaleString()}</dd>
+                      <div className="incident-metadata-item">
+                        <dt>Service</dt>
+                        <dd>{selectedIncident.serviceName ?? 'No service associated'}</dd>
+                      </div>
 
-                    <dt>Last updated</dt>
-                    <dd>{new Date(selectedIncident.updatedAt).toLocaleString()}</dd>
-                  </dl>
+                      <div className="incident-metadata-item">
+                        <dt>Assignee</dt>
+                        <dd>{formatAssignee(selectedIncident)}</dd>
+                      </div>
+
+                      <div className="incident-metadata-item">
+                        <dt>Created</dt>
+                        <dd>{new Date(selectedIncident.createdAt).toLocaleString()}</dd>
+                      </div>
+
+                      <div className="incident-metadata-item">
+                        <dt>Last updated</dt>
+                        <dd>{new Date(selectedIncident.updatedAt).toLocaleString()}</dd>
+                      </div>
+                    </dl>
+                  </div>
                 </section>
             )}
 
@@ -1243,6 +1253,27 @@ function App() {
                       <option value="CRITICAL">Critical</option>
                     </select>
 
+                    <label htmlFor="incident-service">Service (optional)</label>
+                    <select
+                        id="incident-service"
+                        value={createServiceId}
+                        onChange={(event) => setCreateServiceId(event.target.value)}
+                        disabled={createLoading || servicesLoading}
+                    >
+                      <option value="">No service associated</option>
+                      {services.map((service) => (
+                          <option key={service.id} value={service.id}>
+                            {service.name}
+                          </option>
+                      ))}
+                    </select>
+                    {servicesLoading && <small className="field-hint">Loading services…</small>}
+                    {servicesError && (
+                        <small className="field-hint" role="status">
+                          Services could not be loaded. You can still create an incident without a service.
+                        </small>
+                    )}
+
                     <div className="create-form-actions">
                       <button
                           className="secondary-button"
@@ -1331,13 +1362,6 @@ function App() {
                 </button>
               </div>
 
-              {incidentError && (
-                  <div className="error-banner" role="alert">
-                    <strong>Incident list notice</strong>
-                    <span>{incidentError}</span>
-                  </div>
-              )}
-
               <div className="table-scroll">
                 <table className="incident-table">
                   <thead>
@@ -1352,13 +1376,15 @@ function App() {
                   </thead>
 
                   <tbody>
-                  {incidentsLoading && incidents.length === 0 ? (
+                  {loading ? (
                       <tr>
                         <td colSpan={6}>Loading incidents…</td>
                       </tr>
-                  ) : incidentError && incidents.length === 0 ? (
+                  ) : dashboardError ? (
                       <tr>
-                        <td colSpan={6}>Unable to load incidents. See the error notice above.</td>
+                        <td colSpan={6}>
+                          Dashboard data may be incomplete. Check the notice above.
+                        </td>
                       </tr>
                   ) : incidents.length === 0 ? (
                       <tr>
@@ -1381,7 +1407,7 @@ function App() {
                             </td>
 
                             <td>
-                              <span className="service-name">—</span>
+                              <span className="service-name">{incident.serviceName ?? '—'}</span>
                             </td>
 
                             <td>
@@ -1430,10 +1456,10 @@ function App() {
               </div>
               <div className="table-footer">
   <span>
-    {incidentsLoading
-        ? `Showing ${incidents.length} incidents — updating results…`
-        : incidentError
-            ? 'Incident list could not be refreshed'
+    {loading
+        ? 'Loading incidents…'
+        : dashboardError
+            ? 'Dashboard data may be incomplete'
             : `Showing ${incidents.length} of ${summary?.totalIncidents ?? '—'} incidents`}
   </span>
 
@@ -1444,7 +1470,7 @@ function App() {
                 <button
                     className="pagination-button"
                     type="button"
-                    disabled={incidentsLoading || currentPage === 0}
+                    disabled={loading || currentPage === 0}
                     onClick={() => setCurrentPage(page => Math.max(0, page - 1))}
                 >
                   Previous
@@ -1453,7 +1479,7 @@ function App() {
                 <button
                     className="pagination-button"
                     type="button"
-                    disabled={incidentsLoading || currentPage + 1 >= totalPages}
+                    disabled={loading || currentPage + 1 >= totalPages}
                     onClick={() => setCurrentPage(page => page + 1)}
                 >
                   Next

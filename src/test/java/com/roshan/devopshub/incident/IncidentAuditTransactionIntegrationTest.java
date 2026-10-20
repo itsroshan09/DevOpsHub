@@ -54,7 +54,8 @@ class IncidentAuditTransactionIntegrationTest {
                 actorId,
                 "Database connection failure",
                 "Integration test incident",
-                IncidentSeverity.HIGH
+                IncidentSeverity.HIGH,
+                null
         );
 
         Long incidentId = incident.getId();
@@ -164,7 +165,8 @@ class IncidentAuditTransactionIntegrationTest {
                             actorId,
                             title,
                             "The audit insert should fail.",
-                            IncidentSeverity.HIGH
+                            IncidentSeverity.HIGH,
+                            null
                     )
             );
 
@@ -256,7 +258,8 @@ class IncidentAuditTransactionIntegrationTest {
                 actorId,
                 "Assignment integration test",
                 "Verify assignment persistence.",
-                IncidentSeverity.HIGH
+                IncidentSeverity.HIGH,
+                null
         );
 
         incidentService.assignIncident(
@@ -301,7 +304,8 @@ class IncidentAuditTransactionIntegrationTest {
                 actorId,
                 "Assignment rollback integration test",
                 "Verify reassignment rollback.",
-                IncidentSeverity.HIGH
+                IncidentSeverity.HIGH,
+                null
         );
 
         Long incidentId = incident.getId();
@@ -386,7 +390,8 @@ class IncidentAuditTransactionIntegrationTest {
                 actorId,
                 "Investigation update rollback test",
                 "Verify update and audit rollback.",
-                IncidentSeverity.HIGH
+                IncidentSeverity.HIGH,
+                null
         );
 
         Long incidentId = incident.getId();
@@ -505,7 +510,8 @@ class IncidentAuditTransactionIntegrationTest {
                 actorId,
                 "Severity rollback integration test",
                 "Verify severity and audit rollback.",
-                IncidentSeverity.LOW
+                IncidentSeverity.LOW,
+                null
         );
 
         Long incidentId = incident.getId();

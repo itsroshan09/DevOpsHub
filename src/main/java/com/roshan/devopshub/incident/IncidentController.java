@@ -21,9 +21,6 @@ import java.util.List;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 
-
-
-
 @RestController
 @RequestMapping("/api/incidents")
 public class IncidentController {
@@ -44,9 +41,9 @@ public class IncidentController {
                 Long.parseLong(actorId),
                 request.title(),
                 request.description(),
-                request.severity()
+                request.severity(),
+                request.serviceId()
         );
-
         return IncidentResponse.from(incident);
     }
 

@@ -1,6 +1,11 @@
+const API_BASE = '/api'
+const TOKEN_KEY = 'devopshub_access_token'
 
 export type IncidentSeverity = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL'
+
 export type IncidentStatus = 'OPEN' | 'IN_PROGRESS' | 'RESOLVED'
+
+export type UserRole = 'ADMIN' | 'RESPONDER' | 'VIEWER'
 
 export interface Incident {
     id: number
@@ -12,23 +17,38 @@ export interface Incident {
     updatedAt: string
     assigneeId: number | null
     assigneeEmail: string | null
+    serviceId: number | null
+    serviceName: string | null
 }
+
+export interface Service {
+    id: number
+    name: string
+    description: string
+    createdAt: string
+    updatedAt: string
+}
+
 export interface IncidentUpdate {
     id: number
     incidentId: number
     message: string
     createdAt: string
 }
+
 export interface IncidentHistoryItem {
     type: string
     details: string
     createdAt: string
 }
+
 export interface CreateIncidentRequest {
     title: string
     description: string
     severity: IncidentSeverity
+    serviceId?: number
 }
+
 export interface IncidentPage {
     content: Incident[]
     page: number
@@ -36,7 +56,6 @@ export interface IncidentPage {
     totalElements: number
     totalPages: number
 }
-export type UserRole = 'ADMIN' | 'RESPONDER' | 'VIEWER'
 
 export interface CurrentUser {
     id: number
@@ -45,6 +64,7 @@ export interface CurrentUser {
     role: UserRole
     createdAt: string
 }
+
 export type AssignableUser = Pick<
     CurrentUser,
     'id' | 'email' | 'displayName' | 'role'
@@ -72,9 +92,6 @@ export interface LoginResponse {
     expiresIn: number
 }
 
-const API_BASE = '/api'
-const TOKEN_KEY = 'devopshub_access_token'
-
 export function getAccessToken(): string | null {
     return sessionStorage.getItem(TOKEN_KEY)
 }
@@ -93,6 +110,7 @@ async function request<T>(
     authenticated = true,
 ): Promise<T> {
     const headers = new Headers(options.headers)
+
     headers.set('Accept', 'application/json')
 
     if (options.body) {
@@ -122,10 +140,13 @@ async function request<T>(
         }
 
         if (response.status === 403) {
-            throw new Error('You do not have permission to perform this action.')
+            throw new Error(
+                'You do not have permission to perform this action.',
+            )
         }
 
         const body = await response.text()
+
         throw new Error(
             body || `Request failed with HTTP ${response.status}.`,
         )
@@ -138,7 +159,9 @@ async function request<T>(
     return response.json() as Promise<T>
 }
 
-export function login(credentials: LoginRequest): Promise<LoginResponse> {
+export function login(
+    credentials: LoginRequest,
+): Promise<LoginResponse> {
     return request<LoginResponse>(
         '/auth/login',
         {
@@ -148,29 +171,19 @@ export function login(credentials: LoginRequest): Promise<LoginResponse> {
         false,
     )
 }
-export function getIncidentHistory(
-    incidentId: number,
-): Promise<IncidentHistoryItem[]> {
-    return request<IncidentHistoryItem[]>(
-        `/incidents/${incidentId}/history`,
-    )
+
+export function getCurrentUser(): Promise<CurrentUser> {
+    return request<CurrentUser>('/users/me')
 }
+
+export function getServices(): Promise<Service[]> {
+    return request<Service[]>('/services')
+}
+
 export function getAssignableUsers(): Promise<AssignableUser[]> {
     return request<AssignableUser[]>('/users/assignable')
 }
 
-export function assignIncident(
-    incidentId: number,
-    userId: number,
-): Promise<Incident> {
-    return request<Incident>(
-        `/incidents/${incidentId}/assignee`,
-        {
-            method: 'PUT',
-            body: JSON.stringify({ userId }),
-        },
-    )
-}
 export function getIncidents(
     page = 0,
     size = 10,
@@ -187,7 +200,51 @@ export function getIncidents(
         params.set('search', normalizedSearch)
     }
 
-    return request<IncidentPage>(`/incidents?${params.toString()}`)
+    return request<IncidentPage>(
+        `/incidents?${params.toString()}`,
+    )
+}
+
+export function getIncidentById(id: number): Promise<Incident> {
+    return request<Incident>(`/incidents/${id}`)
+}
+
+export function createIncident(
+    incident: CreateIncidentRequest,
+): Promise<Incident> {
+    return request<Incident>(
+        '/incidents',
+        {
+            method: 'POST',
+            body: JSON.stringify(incident),
+        },
+    )
+}
+
+export function transitionIncident(
+    incidentId: number,
+    status: IncidentStatus,
+): Promise<Incident> {
+    return request<Incident>(
+        `/incidents/${incidentId}/transitions`,
+{
+    method: 'POST',
+        body: JSON.stringify({ status }),
+},
+)
+}
+
+export function assignIncident(
+    incidentId: number,
+    userId: number,
+): Promise<Incident> {
+    return request<Incident>(
+        `/incidents/${incidentId}/assignee`,
+        {
+            method: 'PUT',
+            body: JSON.stringify({ userId }),
+        },
+    )
 }
 
 export function getIncidentUpdates(
@@ -210,34 +267,15 @@ export function addIncidentUpdate(
         },
     )
 }
-export function getCurrentUser(): Promise<CurrentUser> {
-    return request<CurrentUser>('/users/me')
-}
-export function transitionIncident(
+
+export function getIncidentHistory(
     incidentId: number,
-    status: IncidentStatus,
-): Promise<Incident> {
-    return request<Incident>(
-        `/incidents/${incidentId}/transitions`,
-        {
-            method: 'POST',
-            body: JSON.stringify({ status }),
-        },
+): Promise<IncidentHistoryItem[]> {
+    return request<IncidentHistoryItem[]>(
+        `/incidents/${incidentId}/history`,
     )
 }
 
-
-export function getIncidentById(id: number): Promise<Incident> {
-    return request<Incident>(`/incidents/${id}`)
-}
 export function getDashboardSummary(): Promise<DashboardSummary> {
     return request<DashboardSummary>('/dashboard/summary')
-}
-export function createIncident(
-    incident: CreateIncidentRequest,
-): Promise<Incident> {
-    return request<Incident>('/incidents', {
-        method: 'POST',
-        body: JSON.stringify(incident),
-    })
 }

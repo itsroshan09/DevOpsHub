@@ -55,14 +55,16 @@ class IncidentDashboardAggregationIntegrationTest {
                 actorId,
                 "Dashboard low incident " + UUID.randomUUID(),
                 "Low severity test incident",
-                IncidentSeverity.LOW
+                IncidentSeverity.LOW,
+                null
         );
 
         Incident highIncident = incidentService.createIncident(
                 actorId,
                 "Dashboard high incident " + UUID.randomUUID(),
                 "High severity test incident",
-                IncidentSeverity.HIGH
+                IncidentSeverity.HIGH,
+                null
         );
 
         incidentService.transitionStatus(
