@@ -1641,3 +1641,10 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+.nav-item {
+  width: 100%;
+  border: none;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}

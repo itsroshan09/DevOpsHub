@@ -11,7 +11,8 @@ import org.springframework.security.config.annotation.web.configurers.AbstractHt
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
-import jakarta.servlet.DispatcherType;
+import jakarta.servlet.DispatcherType;import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
+import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
 
 @Configuration
 public class SecurityConfig {
@@ -31,7 +32,20 @@ public class SecurityConfig {
             throws Exception {
 
         http
-                .csrf(AbstractHttpConfigurer::disable)
+                .csrf(csrf -> csrf
+                        .csrfTokenRepository(
+                                CookieCsrfTokenRepository.withHttpOnlyFalse()
+                        )
+                        .csrfTokenRequestHandler(
+                                new CsrfTokenRequestAttributeHandler()
+                        )
+                        .ignoringRequestMatchers(
+                                "/api/incidents/**",
+                                "/api/services/**",
+                                "/api/users/**",
+                                "/api/dashboard/**"
+                        )
+                )
                 .formLogin(AbstractHttpConfigurer::disable)
                 .httpBasic(AbstractHttpConfigurer::disable)
                 .sessionManagement(session -> session
@@ -110,9 +124,22 @@ public class SecurityConfig {
                                 ).hasAnyRole("ADMIN", "RESPONDER", "VIEWER")
                         // Everything else still requires authentication
                                 .requestMatchers(
+                                        HttpMethod.POST,
+                                        "/api/auth/register",
+                                        "/api/auth/login",
+                                        "/api/auth/refresh",
+                                        "/api/auth/logout"
+                                ).permitAll()
+
+                                .requestMatchers(
                                         HttpMethod.GET,
                                         "/api/users/assignable"
                                 ).hasAnyRole("ADMIN", "RESPONDER")
+                                .requestMatchers(
+                                        HttpMethod.GET,
+                                        "/api/auth/csrf"
+                                ).
+                                permitAll()
                         .anyRequest().authenticated()
                 )
 

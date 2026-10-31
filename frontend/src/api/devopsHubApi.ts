@@ -1,6 +1,6 @@
 const API_BASE = '/api'
-const TOKEN_KEY = 'devopshub_access_token'
-
+//const TOKEN_KEY = 'devopshub_access_token'
+let accessToken: string | null = null
 export type IncidentSeverity = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL'
 
 export type IncidentStatus = 'OPEN' | 'IN_PROGRESS' | 'RESOLVED'
@@ -92,24 +92,52 @@ export interface LoginResponse {
     expiresIn: number
 }
 
+interface CsrfResponse {
+    headerName: string
+    token: string
+}
+
+async function fetchCsrfToken(): Promise<CsrfResponse> {
+    const response = await fetch(`${API_BASE}/auth/csrf`, {
+        method: 'GET',
+        headers: {
+            Accept: 'application/json',
+        },
+    })
+
+    if (!response.ok) {
+        throw new Error(
+            `Unable to initialize security token (HTTP ${response.status}).`,
+        )
+    }
+
+    return response.json() as Promise<CsrfResponse>
+}
+
 export function getAccessToken(): string | null {
-    return sessionStorage.getItem(TOKEN_KEY)
+    return accessToken
 }
 
 export function saveAccessToken(token: string): void {
-    sessionStorage.setItem(TOKEN_KEY, token)
+    accessToken = token
 }
 
 export function clearAccessToken(): void {
-    sessionStorage.removeItem(TOKEN_KEY)
+    accessToken = null
 }
+
 
 async function request<T>(
     path: string,
     options: RequestInit = {},
     authenticated = true,
+    extraHeaders?: HeadersInit,
 ): Promise<T> {
     const headers = new Headers(options.headers)
+
+    new Headers(extraHeaders).forEach((value, key) => {
+        headers.set(key, value)
+    })
 
     headers.set('Accept', 'application/json')
 
@@ -135,7 +163,7 @@ async function request<T>(
             throw new Error(
                 authenticated
                     ? 'Your session is missing or expired. Please sign in again.'
-                    : 'Invalid email or password.',
+                    : 'Authentication failed. Please try again.',
             )
         }
 
@@ -159,9 +187,13 @@ async function request<T>(
     return response.json() as Promise<T>
 }
 
-export function login(
+
+
+export async function login(
     credentials: LoginRequest,
 ): Promise<LoginResponse> {
+    const csrf = await fetchCsrfToken()
+
     return request<LoginResponse>(
         '/auth/login',
         {
@@ -169,8 +201,78 @@ export function login(
             body: JSON.stringify(credentials),
         },
         false,
+        { [csrf.headerName]: csrf.token },
     )
 }
+
+
+
+let refreshInFlight: Promise<LoginResponse> | null = null
+
+export function refreshSession(): Promise<LoginResponse> {
+    if (refreshInFlight) {
+        return refreshInFlight
+    }
+
+    const request = navigator.locks.request(
+        'devopshub-refresh-token',
+        async () => {
+            // Fetch CSRF only after acquiring the cross-tab lock.
+            const csrf = await fetchCsrfToken()
+
+            // The browser sends the latest cookie after the
+            // previous tab has completed its refresh.
+            return requestLoginRefresh(csrf)
+        },
+    )
+
+    refreshInFlight = request
+
+    void request.then(
+        () => {
+            if (refreshInFlight === request) {
+                refreshInFlight = null
+            }
+        },
+        () => {
+            if (refreshInFlight === request) {
+                refreshInFlight = null
+            }
+        },
+    )
+
+    return request
+}
+
+async function requestLoginRefresh(
+    csrf: CsrfResponse,
+): Promise<LoginResponse> {
+    return request<LoginResponse>(
+        '/auth/refresh',
+        {
+            method: 'POST',
+        },
+        false,
+        { [csrf.headerName]: csrf.token },
+    )
+}
+
+
+export async function logout(): Promise<void> {
+    const csrf = await fetchCsrfToken()
+
+    await request<void>(
+        '/auth/logout',
+        {
+            method: 'POST',
+        },
+        false,
+        { [csrf.headerName]: csrf.token },
+    )
+
+    clearAccessToken()
+}
+
 
 export function getCurrentUser(): Promise<CurrentUser> {
     return request<CurrentUser>('/users/me')

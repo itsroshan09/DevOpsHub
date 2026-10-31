@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import './App.css'
+import { useLocation, useNavigate } from 'react-router-dom'
 import {
   clearAccessToken,
   createIncident,
@@ -26,6 +27,7 @@ import {
   getIncidentById,
   type IncidentSeverity,
   type Service,
+  refreshSession, logout,
 } from './api/devopsHubApi'
 
 function formatStatus(status: Incident['status']): string {
@@ -51,10 +53,10 @@ function formatHistoryType(type: string): string {
 
   return labels[type] ?? type.replaceAll('_', ' ').toLowerCase().replace(/^\w/, (char) => char.toUpperCase())
 }
-
+type WorkspaceView = 'dashboard' | 'incidents' | 'services' | 'activity'
 function App() {
   const [token, setToken] = useState<string | null>(() => getAccessToken())
-
+  const [sessionChecking, setSessionChecking] = useState(true)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loginLoading, setLoginLoading] = useState(false)
@@ -80,7 +82,62 @@ function App() {
   const [currentPage, setCurrentPage] = useState(0)
   const [totalPages, setTotalPages] = useState(0)
   const [searchTerm, setSearchTerm] = useState('')
+  const navigate = useNavigate()
+  const location = useLocation()
 
+  const validViews: WorkspaceView[] = [
+    'dashboard',
+    'incidents',
+    'services',
+    'activity',
+  ]
+
+  const routeSegment = location.pathname.split('/').filter(Boolean)[0]
+
+  const activeView: WorkspaceView = validViews.includes(
+      routeSegment as WorkspaceView,
+  )
+      ? (routeSegment as WorkspaceView)
+      : 'dashboard'
+
+  useEffect(() => {
+    if (location.pathname === '/') {
+      navigate('/dashboard', { replace: true })
+    }
+  }, [location.pathname, navigate])
+  useEffect(() => {
+    let active = true
+
+    async function restoreSession() {
+      try {
+        const response = await refreshSession()
+
+        if (!active) {
+          return
+        }
+
+        saveAccessToken(response.accessToken)
+        setToken(response.accessToken)
+      } catch {
+        if (!active) {
+          return
+        }
+
+        clearAccessToken()
+        setToken(null)
+      } finally {
+        if (active) {
+          setSessionChecking(false)
+        }
+      }
+    }
+
+    void restoreSession()
+
+    return () => {
+      active = false
+    }
+  }, [])
   const [selectedIncident, setSelectedIncident] = useState<Incident | null>(null)
   const [detailLoading, setDetailLoading] = useState(false)
   const [detailError, setDetailError] = useState<string | null>(null)
@@ -139,44 +196,55 @@ function App() {
     }
   }
 
-  function handleLogout() {
-    clearAccessToken()
-    setToken(null)
-    setIncidents([])
-    setSummary(null)
-    setDashboardError(null)
-    setCreateError(null)
-    setCreateSuccess(null)
-    setCreateServiceId('')
-    setServices([])
-    setServicesError(null)
-    setShowCreateForm(false)
-    setSelectedIncident(null)
-    setDetailLoading(false)
-    setDetailError(null)
-    setIncidentUpdates([])
-    setUpdatesLoading(false)
-    setUpdatesError(null)
-    setUpdateMessage('')
-    setUpdateSubmitting(false)
-    setUpdateSubmitError(null)
-    setUpdateSubmitSuccess(null)
-    setIncidentHistory([])
-    setHistoryLoading(false)
-    setHistoryError(null)
-    setPassword('')
-    setCurrentUser(null)
-    setUserLoading(false)
-    setTransitionLoading(false)
-    setTransitionError(null)
-    setTransitionSuccess(null)
-    setAssignableUsers([])
-    setAssigneeSelection('')
-    setAssigneesLoading(false)
-    setAssignmentLoading(false)
-    setAssignmentError(null)
-    setAssignmentSuccess(null)
+  async function handleLogout() {
+    try {
+      await logout()
+    } catch (err) {
+      console.error('Server logout failed:', err)
+    } finally {
+      clearAccessToken()
+      setToken(null)
+
+
+      clearAccessToken()
+      setToken(null)
+      setIncidents([])
+      setSummary(null)
+      setDashboardError(null)
+      setCreateError(null)
+      setCreateSuccess(null)
+      setCreateServiceId('')
+      setServices([])
+      setServicesError(null)
+      setShowCreateForm(false)
+      setSelectedIncident(null)
+      setDetailLoading(false)
+      setDetailError(null)
+      setIncidentUpdates([])
+      setUpdatesLoading(false)
+      setUpdatesError(null)
+      setUpdateMessage('')
+      setUpdateSubmitting(false)
+      setUpdateSubmitError(null)
+      setUpdateSubmitSuccess(null)
+      setIncidentHistory([])
+      setHistoryLoading(false)
+      setHistoryError(null)
+      setPassword('')
+      setCurrentUser(null)
+      setUserLoading(false)
+      setTransitionLoading(false)
+      setTransitionError(null)
+      setTransitionSuccess(null)
+      setAssignableUsers([])
+      setAssigneeSelection('')
+      setAssigneesLoading(false)
+      setAssignmentLoading(false)
+      setAssignmentError(null)
+      setAssignmentSuccess(null)
+    }
   }
+
   async function handleIncidentTransition(status: IncidentStatus) {
     if (!selectedIncident || transitionLoading) {
       return
@@ -603,6 +671,13 @@ function App() {
     }
   }
 
+  if (sessionChecking) {
+    return (
+        <div className="app-loading">
+          Restoring your session…
+        </div>
+    )
+  }
   if (!token) {
     return (
         <main className="login-page">
@@ -692,9 +767,10 @@ function App() {
                   setUpdateSubmitSuccess(null)
                   setIncidentHistory([])
                   setHistoryError(null)
+                  navigate('/incidents')
                 }}
             >
-              Back to dashboard
+              Back to incidents
             </button>
 
             {detailLoading && <p>Loading incident details...</p>}
@@ -1067,7 +1143,7 @@ function App() {
   return (
       <div className="app-shell">
         <aside className="sidebar">
-          <a className="brand" href="#dashboard" aria-label="DevOpsHub home">
+          <a className="brand" href="/dashboard" onClick={(event) => { event.preventDefault(); navigate('/dashboard') }} aria-label="DevOpsHub home">
             <span className="brand-mark">D</span>
             <span>
             <strong>DevOpsHub</strong>
@@ -1078,24 +1154,56 @@ function App() {
           <div className="workspace-label">WORKSPACE</div>
 
           <nav className="navigation" aria-label="Main navigation">
-            <a className="nav-item active" href="#dashboard">
+            <button
+                className={`nav-item ${activeView === 'dashboard' ? 'active' : ''}`}
+                type="button"
+                onClick={() => {
+                  navigate('/dashboard')
+                  setSelectedIncident(null)
+                }}
+                aria-current={activeView === 'dashboard' ? 'page' : undefined}
+            >
               <span>▦</span> Dashboard
-            </a>
+            </button>
 
-            <a className="nav-item" href="#incidents">
+            <button
+                className={`nav-item ${activeView === 'incidents' ? 'active' : ''}`}
+                type="button"
+                onClick={() => {
+                  navigate('/incidents')
+                  setSelectedIncident(null)
+                }}
+                aria-current={activeView === 'incidents' ? 'page' : undefined}
+            >
               <span>◉</span> Incidents
               <span className="nav-count">
-              {loading ? '—' : (summary?.openIncidents ?? 0)}
-            </span>
-            </a>
+      {loading ? '—' : (summary?.openIncidents ?? 0)}
+    </span>
+            </button>
 
-            <a className="nav-item" href="#services">
+            <button
+                className={`nav-item ${activeView === 'services' ? 'active' : ''}`}
+                type="button"
+                onClick={() => {
+                  navigate('/services')
+                  setSelectedIncident(null)
+                }}
+                aria-current={activeView === 'services' ? 'page' : undefined}
+            >
               <span>▤</span> Services
-            </a>
+            </button>
 
-            <a className="nav-item" href="#activity">
+            <button
+                className={`nav-item ${activeView === 'activity' ? 'active' : ''}`}
+                type="button"
+                onClick={() => {
+                  navigate('/activity')
+                  setSelectedIncident(null)
+                }}
+                aria-current={activeView === 'activity' ? 'page' : undefined}
+            >
               <span>↻</span> Activity
-            </a>
+            </button>
           </nav>
 
           <div className="sidebar-bottom">
@@ -1127,7 +1235,13 @@ function App() {
         <main className="main-content" id="dashboard">
           <header className="topbar">
             <div className="breadcrumb">
-              Workspace <span>/</span> <strong>Dashboard</strong>
+              Workspace <span>/</span>{' '}
+              <strong>
+                {activeView === 'dashboard' && 'Dashboard'}
+                {activeView === 'incidents' && 'Incidents'}
+                {activeView === 'services' && 'Services'}
+                {activeView === 'activity' && 'Activity'}
+              </strong>
             </div>
 
             <div className="topbar-right">
@@ -1143,291 +1257,376 @@ function App() {
             <div className="page-heading">
               <div>
                 <div className="eyebrow">ENGINEERING OVERVIEW</div>
-                <h1>Incident dashboard</h1>
+                <h1>
+                  {activeView === 'dashboard' && 'Incident dashboard'}
+                  {activeView === 'incidents' && 'Incidents'}
+                  {activeView === 'services' && 'Services'}
+                  {activeView === 'activity' && 'Activity'}
+                </h1>
                 <p>
                   Monitor incidents, coordinate investigations, and track
                   resolution.
                 </p>
               </div>
 
-              <button
-                  className="primary-button"
-                  type="button"
-                  onClick={() => {
-                    setCreateError(null)
-                    setCreateSuccess(null)
-                    setShowCreateForm(true)
-                  }}
-              >
-                <span>＋</span> Create incident
-              </button>
+              {(activeView === 'dashboard' || activeView === 'incidents') && (
+                  <button
+                      className="primary-button"
+                      type="button"
+                      onClick={() => {
+                        setCreateError(null)
+                        setCreateSuccess(null)
+                        setShowCreateForm(true)
+                      }}
+                  >
+                    <span>＋</span> Create incident
+                  </button>
+              )}
             </div>
 
-            {createSuccess && (
-                <div className="success-banner" role="status">
-                  <span>{createSuccess}</span>
-                  <button
-                      type="button"
-                      onClick={() => setCreateSuccess(null)}
-                      aria-label="Dismiss success message"
-                  >
-                    ×
-                  </button>
-                </div>
-            )}
-
-            {showCreateForm && (
-                <section
-                    className="create-panel"
-                    aria-labelledby="create-incident-heading"
-                >
-                  <div className="create-panel-heading">
+            {activeView === 'services' ? (
+                <section className="incidents-panel">
+                  <div className="panel-heading">
                     <div>
-                      <h2 id="create-incident-heading">Create incident</h2>
-                      <p>
-                        Record an issue for your engineering team to investigate.
-                      </p>
+                      <h2>Registered services</h2>
+                      <p>Services associated with your engineering incidents.</p>
                     </div>
-
-                    <button
-                        className="secondary-button"
-                        type="button"
-                        disabled={createLoading}
-                        onClick={() => {
-                          setShowCreateForm(false)
-                          setCreateError(null)
-                        }}
-                    >
-                      Cancel
-                    </button>
                   </div>
 
-                  {createError && (
-                      <div className="login-error" role="alert">
-                        {createError}
+                  {servicesLoading ? (
+                      <p>Loading services...</p>
+                  ) : servicesError ? (
+                      <div className="error-banner" role="alert">
+                        {servicesError}
+                      </div>
+                  ) : services.length === 0 ? (
+                      <p>No services have been registered yet.</p>
+                  ) : (
+                      <div className="table-scroll">
+                        <table className="incident-table">
+                          <thead>
+                          <tr>
+                            <th>SERVICE</th>
+                            <th>DESCRIPTION</th>
+                            <th>CREATED</th>
+                          </tr>
+                          </thead>
+                          <tbody>
+                          {services.map((service) => (
+                              <tr key={service.id}>
+                                <td>{service.name}</td>
+                                <td>{service.description || '—'}</td>
+                                <td>
+                                  {service.createdAt
+                                      ? new Date(service.createdAt).toLocaleDateString()
+                                      : '—'}
+                                </td>
+                              </tr>
+                          ))}
+                          </tbody>
+                        </table>
+                      </div>
+                  )}
+                </section>
+            ) : activeView === 'activity' ? (
+                <section className="incidents-panel">
+                  <div className="panel-heading">
+                    <div>
+                      <h2>Incident activity</h2>
+                      <p>
+                        Investigation updates and history are available from
+                        individual incident details.
+                      </p>
+                    </div>
+                  </div>
+
+                  <button
+                      className="secondary-button"
+                      type="button"
+                      onClick={() => navigate('/incidents')}
+                  >
+                    Browse incidents →
+                  </button>
+                </section>
+            ) : (
+                <>
+                  {createSuccess && (
+                      <div className="success-banner" role="status">
+                        <span>{createSuccess}</span>
+                        <button
+                            type="button"
+                            onClick={() => setCreateSuccess(null)}
+                            aria-label="Dismiss success message"
+                        >
+                          ×
+                        </button>
                       </div>
                   )}
 
-                  <form className="create-form" onSubmit={handleCreateIncident}>
-                    <label htmlFor="incident-title">Title</label>
-                    <input
-                        id="incident-title"
-                        value={createTitle}
-                        onChange={(event) => setCreateTitle(event.target.value)}
-                        maxLength={200}
-                        placeholder="e.g. Payment API returning HTTP 500"
-                        required
-                        disabled={createLoading}
-                    />
-                    <small className="field-hint">
-                      {createTitle.length}/200 characters
-                    </small>
-
-                    <label htmlFor="incident-description">Description</label>
-                    <textarea
-                        id="incident-description"
-                        value={createDescription}
-                        onChange={(event) =>
-                            setCreateDescription(event.target.value)
-                        }
-                        placeholder="Describe the issue and its observed impact."
-                        rows={5}
-                        required
-                        disabled={createLoading}
-                    />
-
-                    <label htmlFor="incident-severity">Severity</label>
-                    <select
-                        id="incident-severity"
-                        value={createSeverity}
-                        onChange={(event) =>
-                            setCreateSeverity(
-                                event.target.value as IncidentSeverity,
-                            )
-                        }
-                        disabled={createLoading}
-                    >
-                      <option value="LOW">Low</option>
-                      <option value="MEDIUM">Medium</option>
-                      <option value="HIGH">High</option>
-                      <option value="CRITICAL">Critical</option>
-                    </select>
-
-                    <label htmlFor="incident-service">Service (optional)</label>
-                    <select
-                        id="incident-service"
-                        value={createServiceId}
-                        onChange={(event) => setCreateServiceId(event.target.value)}
-                        disabled={createLoading || servicesLoading}
-                    >
-                      <option value="">No service associated</option>
-                      {services.map((service) => (
-                          <option key={service.id} value={service.id}>
-                            {service.name}
-                          </option>
-                      ))}
-                    </select>
-                    {servicesLoading && <small className="field-hint">Loading services…</small>}
-                    {servicesError && (
-                        <small className="field-hint" role="status">
-                          Services could not be loaded. You can still create an incident without a service.
-                        </small>
-                    )}
-
-                    <div className="create-form-actions">
-                      <button
-                          className="secondary-button"
-                          type="button"
-                          disabled={createLoading}
-                          onClick={() => {
-                            setShowCreateForm(false)
-                            setCreateError(null)
-                          }}
+                  {showCreateForm && (
+                      <section
+                          className="create-panel"
+                          aria-labelledby="create-incident-heading"
                       >
-                        Cancel
-                      </button>
+                        <div className="create-panel-heading">
+                          <div>
+                            <h2 id="create-incident-heading">Create incident</h2>
+                            <p>
+                              Record an issue for your engineering team to investigate.
+                            </p>
+                          </div>
 
-                      <button
-                          className="primary-button"
-                          type="submit"
-                          disabled={createLoading}
-                      >
-                        {createLoading ? 'Creating…' : 'Create incident'}
-                      </button>
-                    </div>
-                  </form>
-                </section>
-            )}
+                          <button
+                              className="secondary-button"
+                              type="button"
+                              disabled={createLoading}
+                              onClick={() => {
+                                setShowCreateForm(false)
+                                setCreateError(null)
+                              }}
+                          >
+                            Cancel
+                          </button>
+                        </div>
 
-            {dashboardError && (
-                <div className="error-banner" role="alert">
-                  <strong>Dashboard notice</strong>
-                  <span>{dashboardError}</span>
-                  <button
-                      type="button"
-                      onClick={() => window.location.reload()}
-                  >
-                    Retry
-                  </button>
-                </div>
-            )}
+                        {createError && (
+                            <div className="login-error" role="alert">
+                              {createError}
+                            </div>
+                        )}
 
-            <div className="metrics-grid">
-              {metrics.map((metric, index) => (
-                  <article className="metric-card" key={metric.label}>
-                    <div className="metric-top">
-                      <span className="metric-label">{metric.label}</span>
-                      <span className={`metric-icon metric-icon-${index}`}>
+                        <form className="create-form" onSubmit={handleCreateIncident}>
+                          <label htmlFor="incident-title">Title</label>
+                          <input
+                              id="incident-title"
+                              value={createTitle}
+                              onChange={(event) => setCreateTitle(event.target.value)}
+                              maxLength={200}
+                              placeholder="e.g. Payment API returning HTTP 500"
+                              required
+                              disabled={createLoading}
+                          />
+                          <small className="field-hint">
+                            {createTitle.length}/200 characters
+                          </small>
+
+                          <label htmlFor="incident-description">Description</label>
+                          <textarea
+                              id="incident-description"
+                              value={createDescription}
+                              onChange={(event) =>
+                                  setCreateDescription(event.target.value)
+                              }
+                              placeholder="Describe the issue and its observed impact."
+                              rows={5}
+                              required
+                              disabled={createLoading}
+                          />
+
+                          <label htmlFor="incident-severity">Severity</label>
+                          <select
+                              id="incident-severity"
+                              value={createSeverity}
+                              onChange={(event) =>
+                                  setCreateSeverity(
+                                      event.target.value as IncidentSeverity,
+                                  )
+                              }
+                              disabled={createLoading}
+                          >
+                            <option value="LOW">Low</option>
+                            <option value="MEDIUM">Medium</option>
+                            <option value="HIGH">High</option>
+                            <option value="CRITICAL">Critical</option>
+                          </select>
+
+                          <label htmlFor="incident-service">Service (optional)</label>
+                          <select
+                              id="incident-service"
+                              value={createServiceId}
+                              onChange={(event) => setCreateServiceId(event.target.value)}
+                              disabled={createLoading || servicesLoading}
+                          >
+                            <option value="">No service associated</option>
+                            {services.map((service) => (
+                                <option key={service.id} value={service.id}>
+                                  {service.name}
+                                </option>
+                            ))}
+                          </select>
+                          {servicesLoading && <small className="field-hint">Loading services…</small>}
+                          {servicesError && (
+                              <small className="field-hint" role="status">
+                                Services could not be loaded. You can still create an incident without a service.
+                              </small>
+                          )}
+
+                          <div className="create-form-actions">
+                            <button
+                                className="secondary-button"
+                                type="button"
+                                disabled={createLoading}
+                                onClick={() => {
+                                  setShowCreateForm(false)
+                                  setCreateError(null)
+                                }}
+                            >
+                              Cancel
+                            </button>
+
+                            <button
+                                className="primary-button"
+                                type="submit"
+                                disabled={createLoading}
+                            >
+                              {createLoading ? 'Creating…' : 'Create incident'}
+                            </button>
+                          </div>
+                        </form>
+                      </section>
+                  )}
+
+                  {dashboardError && (
+                      <div className="error-banner" role="alert">
+                        <strong>Dashboard notice</strong>
+                        <span>{dashboardError}</span>
+                        <button
+                            type="button"
+                            onClick={() => window.location.reload()}
+                        >
+                          Retry
+                        </button>
+                      </div>
+                  )}
+
+                  {activeView === 'dashboard' && (
+                      <div className="metrics-grid">
+                        {metrics.map((metric, index) => (
+                            <article className="metric-card" key={metric.label}>
+                              <div className="metric-top">
+                                <span className="metric-label">{metric.label}</span>
+                                <span className={`metric-icon metric-icon-${index}`}>
                     {metric.icon}
                   </span>
-                    </div>
-
-                    <div className="metric-value">
-                      {loading ? '—' : (metric.value ?? '—')}
-                    </div>
-
-                    <div className="metric-note">{metric.note}</div>
-                  </article>
-              ))}
-            </div>
-
-            <section className="incidents-panel" id="incidents">
-              <div className="panel-heading">
-                <div>
-                  <h2>Recent incidents</h2>
-                  <p>Review and track the latest engineering incidents.</p>
-                </div>
-
-                <button className="secondary-button" type="button">
-                  View all incidents <span>→</span>
-                </button>
-              </div>
-
-              <div className="table-toolbar">
-                <div className="search-box">
-                  <span>⌕</span>
-                  <input
-                      aria-label="Search incidents"
-                      placeholder="Search incidents..."
-                      value={searchTerm}
-                      onChange={(event) => {
-                        setSearchTerm(event.target.value)
-                        setCurrentPage(0)
-                      }}
-                  />
-                </div>
-
-                <button className="filter-button" type="button" disabled>
-                  <span>☷</span> Filters
-                </button>
-              </div>
-
-              <div className="table-scroll">
-                <table className="incident-table">
-                  <thead>
-                  <tr>
-                    <th>INCIDENT</th>
-                    <th>SERVICE</th>
-                    <th>SEVERITY</th>
-                    <th>STATUS</th>
-                    <th>ASSIGNEE</th>
-                    <th />
-                  </tr>
-                  </thead>
-
-                  <tbody>
-                  {loading ? (
-                      <tr>
-                        <td colSpan={6}>Loading incidents…</td>
-                      </tr>
-                  ) : dashboardError ? (
-                      <tr>
-                        <td colSpan={6}>
-                          Dashboard data may be incomplete. Check the notice above.
-                        </td>
-                      </tr>
-                  ) : incidents.length === 0 ? (
-                      <tr>
-                        <td colSpan={6}>No incidents found.</td>
-                      </tr>
-                  ) : (
-                      incidents.map((incident) => (
-                          <tr key={incident.id}>
-                            <td>
-                              <button
-                                  className="incident-title-button"
-                                  type="button"
-                                  onClick={() => void handleOpenIncident(incident.id)}
-                              >
-                                {incident.title}
-                              </button>
-                              <div className="incident-id">
-                                {formatIncidentId(incident.id)}
                               </div>
-                            </td>
 
-                            <td>
-                              <span className="service-name">{incident.serviceName ?? '—'}</span>
-                            </td>
+                              <div className="metric-value">
+                                {loading ? '—' : (metric.value ?? '—')}
+                              </div>
 
-                            <td>
+                              <div className="metric-note">{metric.note}</div>
+                            </article>
+                        ))}
+                      </div>
+                  )}
+
+                  <section className="incidents-panel" id="incidents">
+                    <div className="panel-heading">
+                      <div>
+                        <h2>{activeView === 'dashboard' ? 'Recent incidents' : 'All incidents'}</h2>
+                        <p>
+                          {activeView === 'dashboard'
+                              ? 'Review and track the latest engineering incidents.'
+                              : 'Search, review, and track engineering incidents.'}
+                        </p>
+                      </div>
+
+                      {activeView === 'dashboard' && (
+                          <button
+                              className="secondary-button"
+                              type="button"
+                              onClick={() => navigate('/incidents')}
+                          >
+                            View all incidents <span>→</span>
+                          </button>
+                      )}
+                    </div>
+
+                    <div className="table-toolbar">
+                      <div className="search-box">
+                        <span>⌕</span>
+                        <input
+                            aria-label="Search incidents"
+                            placeholder="Search incidents..."
+                            value={searchTerm}
+                            onChange={(event) => {
+                              setSearchTerm(event.target.value)
+                              setCurrentPage(0)
+                            }}
+                        />
+                      </div>
+
+                      <button className="filter-button" type="button" disabled>
+                        <span>☷</span> Filters
+                      </button>
+                    </div>
+
+                    <div className="table-scroll">
+                      <table className="incident-table">
+                        <thead>
+                        <tr>
+                          <th>INCIDENT</th>
+                          <th>SERVICE</th>
+                          <th>SEVERITY</th>
+                          <th>STATUS</th>
+                          <th>ASSIGNEE</th>
+                          <th />
+                        </tr>
+                        </thead>
+
+                        <tbody>
+                        {loading ? (
+                            <tr>
+                              <td colSpan={6}>Loading incidents…</td>
+                            </tr>
+                        ) : dashboardError ? (
+                            <tr>
+                              <td colSpan={6}>
+                                Dashboard data may be incomplete. Check the notice above.
+                              </td>
+                            </tr>
+                        ) : incidents.length === 0 ? (
+                            <tr>
+                              <td colSpan={6}>No incidents found.</td>
+                            </tr>
+                        ) : (
+                            incidents.map((incident) => (
+                                <tr key={incident.id}>
+                                  <td>
+                                    <button
+                                        className="incident-title-button"
+                                        type="button"
+                                        onClick={() => void handleOpenIncident(incident.id)}
+                                    >
+                                      {incident.title}
+                                    </button>
+                                    <div className="incident-id">
+                                      {formatIncidentId(incident.id)}
+                                    </div>
+                                  </td>
+
+                                  <td>
+                                    <span className="service-name">{incident.serviceName ?? '—'}</span>
+                                  </td>
+
+                                  <td>
                           <span
                               className={`severity severity-${incident.severity.toLowerCase()}`}
                           >
                             <span className="severity-dot" />
                             {incident.severity}
                           </span>
-                            </td>
+                                  </td>
 
-                            <td>
+                                  <td>
                           <span
                               className={`status status-${incident.status.toLowerCase()}`}
                           >
                             {formatStatus(incident.status)}
                           </span>
-                            </td>
+                                  </td>
 
-                            <td>
+                                  <td>
                           <span className="assignee">
                             <span className="assignee-avatar">
                               {incident.assigneeEmail
@@ -1436,25 +1635,25 @@ function App() {
                             </span>
                             {formatAssignee(incident)}
                           </span>
-                            </td>
+                                  </td>
 
-                            <td>
-                              <button
-                                  className="row-menu"
-                                  type="button"
-                                  aria-label={`Actions for incident ${incident.id}`}
-                                  disabled
-                              >
-                                ···
-                              </button>
-                            </td>
-                          </tr>
-                      ))
-                  )}
-                  </tbody>
-                </table>
-              </div>
-              <div className="table-footer">
+                                  <td>
+                                    <button
+                                        className="row-menu"
+                                        type="button"
+                                        aria-label={`Actions for incident ${incident.id}`}
+                                        disabled
+                                    >
+                                      ···
+                                    </button>
+                                  </td>
+                                </tr>
+                            ))
+                        )}
+                        </tbody>
+                      </table>
+                    </div>
+                    <div className="table-footer">
   <span>
     {loading
         ? 'Loading incidents…'
@@ -1463,29 +1662,31 @@ function App() {
             : `Showing ${incidents.length} of ${summary?.totalIncidents ?? '—'} incidents`}
   </span>
 
-                <span>
+                      <span>
     Page {totalPages === 0 ? 0 : currentPage + 1} of {totalPages}
   </span>
 
-                <button
-                    className="pagination-button"
-                    type="button"
-                    disabled={loading || currentPage === 0}
-                    onClick={() => setCurrentPage(page => Math.max(0, page - 1))}
-                >
-                  Previous
-                </button>
+                      <button
+                          className="pagination-button"
+                          type="button"
+                          disabled={loading || currentPage === 0}
+                          onClick={() => setCurrentPage(page => Math.max(0, page - 1))}
+                      >
+                        Previous
+                      </button>
 
-                <button
-                    className="pagination-button"
-                    type="button"
-                    disabled={loading || currentPage + 1 >= totalPages}
-                    onClick={() => setCurrentPage(page => page + 1)}
-                >
-                  Next
-                </button>
-              </div>
-            </section>
+                      <button
+                          className="pagination-button"
+                          type="button"
+                          disabled={loading || currentPage + 1 >= totalPages}
+                          onClick={() => setCurrentPage(page => page + 1)}
+                      >
+                        Next
+                      </button>
+                    </div>
+                  </section>
+                </>
+            )}
 
             <footer className="page-footer">
               <span>DevOpsHub</span>
@@ -1498,3 +1699,6 @@ function App() {
 }
 
 export default App
+
+
+

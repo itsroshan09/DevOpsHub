@@ -41,7 +41,10 @@ import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.Jwts;
 import com.roshan.devopshub.user.UserResponse;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;import static org.springframework.security.test.web.servlet
+        .request.SecurityMockMvcRequestPostProcessors.csrf;
+
+import static org.mockito.Mockito.verifyNoInteractions;
 
 
 @SpringBootTest
@@ -101,9 +104,13 @@ class SecurityConfigTest {
         );
 
         when(authService.login(any(LoginRequest.class)))
-                .thenReturn(LoginResponse.bearer("test-token", 900));
+                .thenReturn(new AuthService.LoginResult(
+                        LoginResponse.bearer("test-token", 900),
+                        "test-refresh-token"
+                ));
 
         mockMvc.perform(post("/api/auth/login")
+                        .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk());
@@ -967,4 +974,34 @@ class SecurityConfigTest {
                 .findByRoleInOrderByDisplayNameAsc(anyCollection());
     }
 
+    @Test
+    void loginShouldRejectRequestWithoutCsrfToken() throws Exception {
+        mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                            {
+                              "email": "test@example.com",
+                              "password": "Strong-Test-Password-123!"
+                            }
+                            """))
+                .andExpect(status().isForbidden());
+
+        verifyNoInteractions(authService);
+    }
+
+    @Test
+    void refreshShouldRejectRequestWithoutCsrfToken() throws Exception {
+        mockMvc.perform(post("/api/auth/refresh"))
+                .andExpect(status().isForbidden());
+
+        verifyNoInteractions(authService);
+    }
+
+    @Test
+    void logoutShouldRejectRequestWithoutCsrfToken() throws Exception {
+        mockMvc.perform(post("/api/auth/logout"))
+                .andExpect(status().isForbidden());
+
+        verifyNoInteractions(authService);
+    }
 }

@@ -16,7 +16,7 @@ import com.roshan.devopshub.auth.EmailAlreadyExistsException;
 import com.roshan.devopshub.auth.InvalidCredentialsException;
 import com.roshan.devopshub.service.DuplicateServiceNameException;
 import com.roshan.devopshub.service.ServiceNotFoundException;
-import com.roshan.devopshub.user.UserNotFoundException;
+import com.roshan.devopshub.user.UserNotFoundException;import com.roshan.devopshub.auth.InvalidRefreshTokenException;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -156,5 +156,22 @@ public class GlobalExceptionHandler {
         );
 
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
+    }
+    @ExceptionHandler(InvalidRefreshTokenException.class)
+    public ResponseEntity<ApiErrorResponse> handleInvalidRefreshToken(
+            InvalidRefreshTokenException exception
+    ) {
+        ApiErrorResponse response = new ApiErrorResponse(
+                Instant.now(),
+                HttpStatus.UNAUTHORIZED.value(),
+                "Invalid refresh token",
+                List.of(
+                        "Refresh token is invalid, expired, or revoked."
+                )
+        );
+
+        return ResponseEntity
+                .status(HttpStatus.UNAUTHORIZED)
+                .body(response);
     }
 }

@@ -26,7 +26,8 @@ class AuthServiceTest {
     private final UserRepository userRepository = mock(UserRepository.class);
     private final PasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
     private final JwtService jwtService = mock(JwtService.class);
-
+    private final RefreshTokenService refreshTokenService =
+            mock(RefreshTokenService.class);
     private AuthService authService;
 
     @BeforeEach
@@ -34,10 +35,10 @@ class AuthServiceTest {
         authService = new AuthService(
                 userRepository,
                 passwordEncoder,
-                jwtService
+                jwtService,
+                refreshTokenService
         );
     }
-
     @Test
     void registerShouldHashPasswordAndAssignViewerRole() {
         RegisterRequest request = new RegisterRequest(
@@ -105,15 +106,21 @@ class AuthServiceTest {
         when(jwtService.generateAccessToken(user))
                 .thenReturn("signed-test-token");
         when(jwtService.getExpirationSeconds()).thenReturn(900L);
+        when(refreshTokenService.create(user))
+                .thenReturn("test-refresh-token");
 
-        LoginResponse response = authService.login(
+        AuthService.LoginResult result = authService.login(
                 new LoginRequest(" TEST@example.com ", rawPassword)
         );
+
+        LoginResponse response = result.response();
+
+        assertEquals("test-refresh-token", result.refreshToken());
 
         assertEquals("signed-test-token", response.accessToken());
         assertEquals("Bearer", response.tokenType());
         assertEquals(900L, response.expiresIn());
-
+        verify(refreshTokenService).create(user);
         verify(jwtService).generateAccessToken(user);
     }
 
